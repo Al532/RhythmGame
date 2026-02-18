@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Infinite Rhythm Trainer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>Infinite Rhythm Trainer</h1>
+        <p class="hint">Tap with <kbd>Space</kbd>, click, or tap the zone during TAP.</p>
+      </header>
+
+      <section class="status-panel card">
+        <div>
+          <span class="label">Phase</span>
+          <strong id="phaseLabel">LISTEN (1/4)</strong>
+        </div>
+        <div>
+          <span class="label">Pattern</span>
+          <strong id="patternCount">#1</strong>
+        </div>
+        <div>
+          <span class="label">Score</span>
+          <strong id="scoreValue">5</strong>
+        </div>
+      </section>
+
+      <section class="grid card">
+        <div id="steps" class="steps" aria-label="16 step rhythm grid"></div>
+        <div class="playhead-wrap"><div id="playhead" class="playhead"></div></div>
+      </section>
+
+      <section class="controls card">
+        <label>
+          BPM: <span id="bpmValue">60</span>
+          <input id="bpm" type="range" min="40" max="120" value="60" />
+        </label>
+
+        <label>
+          Input latency offset (ms): <span id="latencyValue">50</span>
+          <input id="latency" type="range" min="0" max="200" step="5" value="50" />
+        </label>
+
+        <label class="inline">
+          <input id="showPattern" type="checkbox" checked /> Show pattern
+        </label>
+        <label class="inline">
+          <input id="backingOn" type="checkbox" checked /> Backing drums on
+        </label>
+      </section>
+
+      <section class="score card">
+        <div class="score-bar-wrap" aria-label="score bar 0 to 5">
+          <div id="scoreBar" class="score-bar"></div>
+        </div>
+      </section>
+
+      <button id="tapZone" class="tap-zone" aria-label="Tap input zone">Tap Here During TAP Phase</button>
+    </main>
+
+    <script src="main.js"></script>
+  </body>
+</html>

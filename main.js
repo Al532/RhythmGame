@@ -41,8 +41,7 @@ const ui = {
   bpmValue: document.getElementById('bpmValue'),
   latency: document.getElementById('latency'),
   latencyValue: document.getElementById('latencyValue'),
-  showPattern: document.getElementById('showPattern'),
-  backingOn: document.getElementById('backingOn'),
+  startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone')
 };
 
@@ -52,8 +51,6 @@ const state = {
   isRunning: false,
   bpm: BPM_DEFAULT,
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
-  showPattern: true,
-  backingOn: true,
 
   patternNumber: 1,
   pattern: [],
@@ -118,10 +115,6 @@ function unlockAudio() {
 
   if (state.audioCtx.state === 'suspended') {
     state.audioCtx.resume();
-  }
-
-  if (!state.isRunning) {
-    startEngine();
   }
 }
 
@@ -206,14 +199,12 @@ function scheduleMeasure(measureStart, phase, repetition) {
   for (let idx = 0; idx < PATTERN_LENGTH; idx += 1) {
     const eventTime = measureStart + (idx * subdivDur);
 
-    if (state.pattern[idx] === 1) {
+    if (phase === PHASE.LISTEN && state.pattern[idx] === 1) {
       playSnare(eventTime);
     }
 
-    if (state.backingOn) {
-      if (idx === 0 || idx === 8) playKick(eventTime);
-      if (idx === 4 || idx === 12) playHiHat(eventTime);
-    }
+    if (idx === 0 || idx === 8) playKick(eventTime);
+    if (idx === 4 || idx === 12) playHiHat(eventTime);
   }
 
   setTimeout(() => {
@@ -288,19 +279,51 @@ function scheduleLoop() {
 }
 
 function startEngine() {
+  if (!state.audioCtx) return;
+
   state.isRunning = true;
+  state.patternNumber = 1;
   state.pattern = generatePattern();
   state.repetition = 1;
   state.phase = PHASE.LISTEN;
   state.liveRepetition = 1;
   state.livePhase = PHASE.LISTEN;
+  state.tapTimes = [];
+  state.score = 5;
   state.currentMeasureStart = state.audioCtx.currentTime + 0.08;
   state.nextMeasureTime = state.currentMeasureStart;
 
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);
   state.scheduleTimer = setInterval(scheduleLoop, SCHED_INTERVAL_MS);
+  updateScoreUI();
   updateStaticUI();
+  ui.startStop.textContent = 'Stop';
   requestAnimationFrame(drawLoop);
+}
+
+function stopEngine() {
+  state.isRunning = false;
+  if (state.scheduleTimer) {
+    clearInterval(state.scheduleTimer);
+    state.scheduleTimer = null;
+  }
+  state.tapTimes = [];
+  state.livePhase = PHASE.LISTEN;
+  state.liveRepetition = 1;
+  ui.playhead.style.transform = 'translateX(0%)';
+  stepEls.forEach((el) => el.classList.remove('current'));
+  ui.tapZone.classList.remove('active');
+  ui.startStop.textContent = 'Start';
+  updateStaticUI();
+}
+
+function toggleEngine() {
+  unlockAudio();
+  if (state.isRunning) {
+    stopEngine();
+    return;
+  }
+  startEngine();
 }
 
 function drawLoop() {
@@ -322,14 +345,6 @@ function drawLoop() {
   requestAnimationFrame(drawLoop);
 }
 
-function updatePatternView() {
-  stepEls.forEach((el, i) => {
-    const isHit = state.pattern[i] === 1;
-    el.classList.toggle('hit', isHit && state.showPattern);
-    el.classList.toggle('hidden-hit', isHit && !state.showPattern);
-  });
-}
-
 function updateScoreUI() {
   ui.scoreValue.textContent = String(state.score);
   ui.scoreBar.style.height = `${(state.score / 5) * 100}%`;
@@ -338,13 +353,17 @@ function updateScoreUI() {
 function updateStaticUI() {
   ui.phaseLabel.textContent = `${state.livePhase} (${state.liveRepetition}/4)`;
   ui.patternCount.textContent = `#${state.patternNumber}`;
-  ui.tapZone.classList.toggle('active', state.phase === PHASE.TAP);
-  updatePatternView();
+  ui.tapZone.classList.toggle('active', state.livePhase === PHASE.TAP && state.isRunning);
 }
 
 function recordTap() {
-  if (!state.audioCtx || !state.isRunning || state.phase !== PHASE.TAP) return;
-  state.tapTimes.push(state.audioCtx.currentTime);
+  if (!state.audioCtx || !state.isRunning || state.livePhase !== PHASE.TAP) return;
+
+  const tapTime = state.audioCtx.currentTime;
+  state.tapTimes.push(tapTime);
+  playSnare(tapTime);
+  ui.tapZone.classList.add('pressed');
+  setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
 }
 
 ui.bpm.min = String(BPM_MIN);
@@ -364,16 +383,10 @@ ui.latency.addEventListener('input', (e) => {
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
 });
 
-ui.showPattern.addEventListener('change', (e) => {
-  state.showPattern = e.target.checked;
-  updatePatternView();
-});
+ui.startStop.addEventListener('click', toggleEngine);
 
-ui.backingOn.addEventListener('change', (e) => {
-  state.backingOn = e.target.checked;
-});
-
-ui.tapZone.addEventListener('pointerdown', () => {
+ui.tapZone.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
   unlockAudio();
   recordTap();
 });
@@ -381,6 +394,12 @@ ui.tapZone.addEventListener('pointerdown', () => {
 window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space') return;
   e.preventDefault();
+
+  if (!state.isRunning) {
+    toggleEngine();
+    return;
+  }
+
   unlockAudio();
   recordTap();
 });

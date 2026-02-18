@@ -69,17 +69,11 @@ h1 {
   background: #252b53;
 }
 
-.step.hit {
-  background: #5f72ff;
-}
 
 .step.current {
   outline: 2px solid var(--warn);
 }
 
-.step.hidden-hit {
-  background: #252b53;
-}
 
 .playhead-wrap {
   position: relative;
@@ -104,16 +98,26 @@ h1 {
   gap: 0.75rem;
 }
 
+#startStop {
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 50%);
+  background: color-mix(in srgb, var(--accent), transparent 82%);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#startStop:hover {
+  background: color-mix(in srgb, var(--accent), transparent 70%);
+}
+
 label {
   display: grid;
   gap: 0.3rem;
 }
 
-.inline {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
 
 .score {
   display: flex;
@@ -152,6 +156,12 @@ label {
 .tap-zone.active {
   border-style: solid;
   background: color-mix(in srgb, #7cb5ff, transparent 65%);
+}
+
+.tap-zone.pressed {
+  transform: scale(0.99);
+  border-color: var(--ok);
+  background: color-mix(in srgb, #7cb5ff, transparent 48%);
 }
 
 @media (max-width: 700px) {

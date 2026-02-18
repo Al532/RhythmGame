@@ -34,6 +34,8 @@
       </section>
 
       <section class="controls card">
+        <button id="startStop" type="button">Start</button>
+
         <label>
           BPM: <span id="bpmValue">60</span>
           <input id="bpm" type="range" min="40" max="120" value="60" />
@@ -42,13 +44,6 @@
         <label>
           Input latency offset (ms): <span id="latencyValue">50</span>
           <input id="latency" type="range" min="0" max="200" step="5" value="50" />
-        </label>
-
-        <label class="inline">
-          <input id="showPattern" type="checkbox" checked /> Show pattern
-        </label>
-        <label class="inline">
-          <input id="backingOn" type="checkbox" checked /> Backing drums on
         </label>
       </section>
 

@@ -28,11 +28,6 @@
         </div>
       </section>
 
-      <section class="grid card">
-        <div id="steps" class="steps" aria-label="16 step rhythm grid"></div>
-        <div class="playhead-wrap"><div id="playhead" class="playhead"></div></div>
-      </section>
-
       <section class="controls card">
         <button id="startStop" type="button">Start</button>
 
@@ -46,6 +41,54 @@
           <input id="latency" type="range" min="0" max="200" step="5" value="50" />
         </label>
       </section>
+
+      <details class="probabilities card" id="probabilitiesPanel">
+        <summary>Algorithm probabilities</summary>
+
+        <fieldset>
+          <legend>First hit index weights</legend>
+          <label>
+            Index 0 weight: <span id="weightFirst0Value">4</span>
+            <input id="weightFirst0" type="range" min="0" max="8" step="0.1" value="4" />
+          </label>
+          <label>
+            Index 1 weight: <span id="weightFirst1Value">1.5</span>
+            <input id="weightFirst1" type="range" min="0" max="8" step="0.1" value="1.5" />
+          </label>
+          <label>
+            Index 2 weight: <span id="weightFirst2Value">3</span>
+            <input id="weightFirst2" type="range" min="0" max="8" step="0.1" value="3" />
+          </label>
+          <label>
+            Index 3 weight: <span id="weightFirst3Value">1.5</span>
+            <input id="weightFirst3" type="range" min="0" max="8" step="0.1" value="1.5" />
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Jump size weights</legend>
+          <label>
+            Jump 1 weight: <span id="weightJump1Value">0.3</span>
+            <input id="weightJump1" type="range" min="0" max="8" step="0.1" value="0.3" />
+          </label>
+          <label>
+            Jump 2 weight: <span id="weightJump2Value">4</span>
+            <input id="weightJump2" type="range" min="0" max="8" step="0.1" value="4" />
+          </label>
+          <label>
+            Jump 3 weight: <span id="weightJump3Value">4</span>
+            <input id="weightJump3" type="range" min="0" max="8" step="0.1" value="4" />
+          </label>
+          <label>
+            Jump 4 weight: <span id="weightJump4Value">0.3</span>
+            <input id="weightJump4" type="range" min="0" max="8" step="0.1" value="0.3" />
+          </label>
+          <label>
+            Jump 5 weight: <span id="weightJump5Value">0.3</span>
+            <input id="weightJump5" type="range" min="0" max="8" step="0.1" value="0.3" />
+          </label>
+        </fieldset>
+      </details>
 
       <section class="score card">
         <div class="score-bar-wrap" aria-label="score bar 0 to 5">

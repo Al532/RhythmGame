@@ -7,11 +7,12 @@ const BPM_MAX = 120;
 const INPUT_LATENCY_DEFAULT_MS = 50;
 const SCHED_LOOKAHEAD_MS = 120;
 const SCHED_INTERVAL_MS = 25;
+const MAX_SCORE = 5;
 
 const FIRST_HIT_INDICES = [0, 1, 2, 3];
-const FIRST_HIT_WEIGHTS = [4, 1.5, 3, 1.5];
+const FIRST_HIT_WEIGHTS_DEFAULT = [4, 1.5, 3, 1.5];
 const JUMP_VALUES = [1, 2, 3, 4, 5];
-const JUMP_WEIGHTS = [1 / 3, 4, 4, 1 / 3, 1 / 3];
+const JUMP_WEIGHTS_DEFAULT = [1 / 3, 4, 4, 1 / 3, 1 / 3];
 
 const DRUM_GAIN = {
   snare: 0.42,
@@ -31,8 +32,6 @@ const PHASE = {
 };
 
 const ui = {
-  steps: document.getElementById('steps'),
-  playhead: document.getElementById('playhead'),
   phaseLabel: document.getElementById('phaseLabel'),
   patternCount: document.getElementById('patternCount'),
   scoreValue: document.getElementById('scoreValue'),
@@ -42,7 +41,18 @@ const ui = {
   latency: document.getElementById('latency'),
   latencyValue: document.getElementById('latencyValue'),
   startStop: document.getElementById('startStop'),
-  tapZone: document.getElementById('tapZone')
+  tapZone: document.getElementById('tapZone'),
+  probabilityInputs: [
+    { input: document.getElementById('weightFirst0'), value: document.getElementById('weightFirst0Value'), group: 'first', index: 0 },
+    { input: document.getElementById('weightFirst1'), value: document.getElementById('weightFirst1Value'), group: 'first', index: 1 },
+    { input: document.getElementById('weightFirst2'), value: document.getElementById('weightFirst2Value'), group: 'first', index: 2 },
+    { input: document.getElementById('weightFirst3'), value: document.getElementById('weightFirst3Value'), group: 'first', index: 3 },
+    { input: document.getElementById('weightJump1'), value: document.getElementById('weightJump1Value'), group: 'jump', index: 0 },
+    { input: document.getElementById('weightJump2'), value: document.getElementById('weightJump2Value'), group: 'jump', index: 1 },
+    { input: document.getElementById('weightJump3'), value: document.getElementById('weightJump3Value'), group: 'jump', index: 2 },
+    { input: document.getElementById('weightJump4'), value: document.getElementById('weightJump4Value'), group: 'jump', index: 3 },
+    { input: document.getElementById('weightJump5'), value: document.getElementById('weightJump5Value'), group: 'jump', index: 4 }
+  ]
 };
 
 const state = {
@@ -51,6 +61,9 @@ const state = {
   isRunning: false,
   bpm: BPM_DEFAULT,
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
+
+  firstHitWeights: [...FIRST_HIT_WEIGHTS_DEFAULT],
+  jumpWeights: [...JUMP_WEIGHTS_DEFAULT],
 
   patternNumber: 1,
   pattern: [],
@@ -64,24 +77,21 @@ const state = {
   scheduleTimer: null,
 
   tapTimes: [],
-  score: 5,
+  expectedHitSet: new Set(),
+  registeredTapSet: new Set(),
+  score: MAX_SCORE,
   lastFlash: null
 };
 
-const stepEls = [];
-for (let i = 0; i < PATTERN_LENGTH; i += 1) {
-  const el = document.createElement('div');
-  el.className = 'step';
-  ui.steps.appendChild(el);
-  stepEls.push(el);
-}
-
 function weightedChoice(values, weights) {
-  const total = weights.reduce((sum, n) => sum + n, 0);
+  const safeWeights = weights.map((weight) => Math.max(0, Number(weight) || 0));
+  const total = safeWeights.reduce((sum, n) => sum + n, 0);
+  if (total <= 0) return values[0];
+
   const r = Math.random() * total;
   let acc = 0;
   for (let i = 0; i < values.length; i += 1) {
-    acc += weights[i];
+    acc += safeWeights[i];
     if (r <= acc) return values[i];
   }
   return values[values.length - 1];
@@ -89,10 +99,10 @@ function weightedChoice(values, weights) {
 
 function generatePattern() {
   const p = Array(PATTERN_LENGTH).fill(0);
-  let pos = weightedChoice(FIRST_HIT_INDICES, FIRST_HIT_WEIGHTS);
+  let pos = weightedChoice(FIRST_HIT_INDICES, state.firstHitWeights);
   while (pos < 15) {
     p[pos] = 1;
-    pos += weightedChoice(JUMP_VALUES, JUMP_WEIGHTS);
+    pos += weightedChoice(JUMP_VALUES, state.jumpWeights);
   }
   p[15] = 0;
   return p;
@@ -181,6 +191,27 @@ function playHiHat(time) {
   src.stop(time + DRUM_TUNING.hihat.decay + 0.01);
 }
 
+function consumeScorePoint() {
+  if (state.score <= 0) return;
+  state.score -= 1;
+  updateScoreUI();
+  flashScore();
+}
+
+function prepareTapPhase() {
+  state.tapTimes = [];
+  state.registeredTapSet = new Set();
+  state.expectedHitSet = new Set();
+  state.pattern.forEach((value, idx) => {
+    if (value === 1 && idx !== 15) {
+      state.expectedHitSet.add(idx);
+    }
+  });
+
+  state.score = MAX_SCORE;
+  updateScoreUI();
+}
+
 function scheduleMeasure(measureStart, phase, repetition) {
   const subdivDur = getSubdivDur();
 
@@ -188,18 +219,16 @@ function scheduleMeasure(measureStart, phase, repetition) {
     state.livePhase = phase;
     state.liveRepetition = repetition;
     updateStaticUI();
-  }, Math.max(0, (measureStart - state.audioCtx.currentTime) * 1000));
 
-  if (phase === PHASE.TAP) {
-    state.tapTimes = [];
-    state.score = 5;
-    updateScoreUI();
-  }
+    if (phase === PHASE.TAP) {
+      prepareTapPhase();
+    }
+  }, Math.max(0, (measureStart - state.audioCtx.currentTime) * 1000));
 
   for (let idx = 0; idx < PATTERN_LENGTH; idx += 1) {
     const eventTime = measureStart + (idx * subdivDur);
 
-    if (phase === PHASE.LISTEN && state.pattern[idx] === 1) {
+    if (state.pattern[idx] === 1) {
       playSnare(eventTime);
     }
 
@@ -212,36 +241,11 @@ function scheduleMeasure(measureStart, phase, repetition) {
   }, Math.max(0, ((measureStart + getMeasureDur()) - state.audioCtx.currentTime) * 1000 + 20));
 }
 
-function finishTapPhase(measureStart) {
-  const subdivDur = getSubdivDur();
-  const hitSet = new Set();
-  state.pattern.forEach((v, i) => {
-    if (v === 1 && i !== 15) hitSet.add(i);
-  });
-
-  const tappedSet = new Set();
-  let extras = 0;
-
-  for (const t of state.tapTimes) {
-    const adj = t - (state.latencyOffsetMs / 1000);
-    const idx = Math.round((adj - measureStart) / subdivDur);
-
-    if (idx < 0 || idx > 15 || idx === 15 || tappedSet.has(idx)) {
-      extras += 1;
-      continue;
-    }
-    tappedSet.add(idx);
+function finishTapPhase() {
+  const missed = state.expectedHitSet.size;
+  for (let i = 0; i < missed; i += 1) {
+    consumeScorePoint();
   }
-
-  let missed = 0;
-  hitSet.forEach((i) => {
-    if (!tappedSet.has(i)) missed += 1;
-  });
-
-  const penalty = missed + extras;
-  state.score = Math.max(0, 5 - penalty);
-  updateScoreUI();
-  flashScore();
 }
 
 function flashScore() {
@@ -289,7 +293,9 @@ function startEngine() {
   state.liveRepetition = 1;
   state.livePhase = PHASE.LISTEN;
   state.tapTimes = [];
-  state.score = 5;
+  state.expectedHitSet = new Set();
+  state.registeredTapSet = new Set();
+  state.score = MAX_SCORE;
   state.currentMeasureStart = state.audioCtx.currentTime + 0.08;
   state.nextMeasureTime = state.currentMeasureStart;
 
@@ -298,7 +304,6 @@ function startEngine() {
   updateScoreUI();
   updateStaticUI();
   ui.startStop.textContent = 'Stop';
-  requestAnimationFrame(drawLoop);
 }
 
 function stopEngine() {
@@ -308,10 +313,10 @@ function stopEngine() {
     state.scheduleTimer = null;
   }
   state.tapTimes = [];
+  state.expectedHitSet = new Set();
+  state.registeredTapSet = new Set();
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
-  ui.playhead.style.transform = 'translateX(0%)';
-  stepEls.forEach((el) => el.classList.remove('current'));
   ui.tapZone.classList.remove('active');
   ui.startStop.textContent = 'Start';
   updateStaticUI();
@@ -326,28 +331,9 @@ function toggleEngine() {
   startEngine();
 }
 
-function drawLoop() {
-  if (!state.isRunning || !state.audioCtx) return;
-
-  const t = state.audioCtx.currentTime;
-  const subdivDur = getSubdivDur();
-  const measurePos = (t - state.currentMeasureStart) / subdivDur;
-  const idx = Math.max(0, Math.min(15, Math.floor(measurePos)));
-
-  const frac = ((t - state.currentMeasureStart) / getMeasureDur());
-  const clampedFrac = Math.max(0, Math.min(1, frac));
-  ui.playhead.style.transform = `translateX(${clampedFrac * 100}%)`;
-
-  stepEls.forEach((el, i) => {
-    el.classList.toggle('current', i === idx);
-  });
-
-  requestAnimationFrame(drawLoop);
-}
-
 function updateScoreUI() {
   ui.scoreValue.textContent = String(state.score);
-  ui.scoreBar.style.height = `${(state.score / 5) * 100}%`;
+  ui.scoreBar.style.height = `${(state.score / MAX_SCORE) * 100}%`;
 }
 
 function updateStaticUI() {
@@ -356,14 +342,50 @@ function updateStaticUI() {
   ui.tapZone.classList.toggle('active', state.livePhase === PHASE.TAP && state.isRunning);
 }
 
+function getTapIndex(tapTime) {
+  const subdivDur = getSubdivDur();
+  const adjustedTime = tapTime - (state.latencyOffsetMs / 1000);
+  return Math.round((adjustedTime - state.currentMeasureStart) / subdivDur);
+}
+
 function recordTap() {
   if (!state.audioCtx || !state.isRunning || state.livePhase !== PHASE.TAP) return;
 
   const tapTime = state.audioCtx.currentTime;
+  const idx = getTapIndex(tapTime);
   state.tapTimes.push(tapTime);
-  playSnare(tapTime);
+
+  const isInvalid = idx < 0 || idx > 15 || idx === 15 || state.registeredTapSet.has(idx);
+  if (isInvalid) {
+    consumeScorePoint();
+  } else {
+    state.registeredTapSet.add(idx);
+    if (state.expectedHitSet.has(idx)) {
+      state.expectedHitSet.delete(idx);
+    } else {
+      consumeScorePoint();
+    }
+  }
+
   ui.tapZone.classList.add('pressed');
   setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
+}
+
+function bindProbabilityControls() {
+  ui.probabilityInputs.forEach(({ input, value, group, index }) => {
+    const sync = () => {
+      const weight = Number(input.value);
+      value.textContent = String(weight);
+      if (group === 'first') {
+        state.firstHitWeights[index] = weight;
+      } else {
+        state.jumpWeights[index] = weight;
+      }
+    };
+
+    input.addEventListener('input', sync);
+    sync();
+  });
 }
 
 ui.bpm.min = String(BPM_MIN);
@@ -405,5 +427,6 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
+bindProbabilityControls();
 updateStaticUI();
 updateScoreUI();

@@ -24,32 +24,42 @@ body.tap-phase {
   background: radial-gradient(circle at top, #2f8253, #102217);
 }
 
-
 body.note-flash {
   animation: noteFlashBg 85ms ease-out;
 }
 
 @keyframes noteFlashBg {
-  from {
-    filter: brightness(1.3);
-  }
-
-  to {
-    filter: brightness(1);
-  }
+  from { filter: brightness(1.3); }
+  to { filter: brightness(1); }
 }
 
 .app {
   width: min(900px, 100%);
   margin: 0 auto;
   padding: 1rem;
+}
+
+.screen {
   display: grid;
   gap: 1rem;
 }
 
-h2 {
-  margin: 0;
-  font-size: 1.1rem;
+.hidden {
+  display: none;
+}
+
+.start-button {
+  justify-self: center;
+  font-size: 2rem;
+  font-weight: 800;
+  padding: 0.9rem 2.2rem;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 20%);
+  background: color-mix(in srgb, var(--accent), transparent 78%);
+}
+
+.debug-level {
+  width: min(520px, 100%);
+  justify-self: center;
 }
 
 .card {
@@ -59,14 +69,9 @@ h2 {
   padding: 1rem;
 }
 
-.controls,
-.game {
+.controls {
   display: grid;
   gap: 0.85rem;
-}
-
-.game {
-  justify-items: center;
 }
 
 .control-buttons {
@@ -84,12 +89,6 @@ button {
   cursor: pointer;
 }
 
-#startStop {
-  border: 1px solid color-mix(in srgb, var(--accent), transparent 50%);
-  background: color-mix(in srgb, var(--accent), transparent 82%);
-}
-
-
 #calibration {
   border: 1px solid color-mix(in srgb, var(--warn), transparent 50%);
   background: color-mix(in srgb, var(--warn), transparent 82%);
@@ -99,7 +98,6 @@ button {
   border: 1px solid color-mix(in srgb, var(--danger), transparent 50%);
   background: color-mix(in srgb, var(--danger), transparent 82%);
 }
-
 
 button,
 .tap-zone {
@@ -119,19 +117,10 @@ label {
   gap: 0.3rem;
 }
 
-#hitToleranceDisplay {
-  white-space: nowrap;
-}
-
 .calibration-result {
   margin: 0;
   font-size: 0.92rem;
   opacity: 0.9;
-}
-
-.test-log-panel {
-  display: grid;
-  gap: 0.5rem;
 }
 
 summary {
@@ -184,8 +173,28 @@ summary {
   margin-top: 0.75rem;
 }
 
-.probabilities legend {
-  padding: 0 0.4rem;
+.game-screen {
+  min-height: calc(100vh - 2rem);
+  place-items: center;
+  align-content: center;
+  position: relative;
+}
+
+.stop-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0 0 10px 0;
+  border: 1px solid color-mix(in srgb, var(--danger), transparent 55%);
+  background: color-mix(in srgb, var(--danger), transparent 84%);
+}
+
+.game-level {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
 }
 
 .tap-zone {
@@ -195,7 +204,7 @@ summary {
   --tap-sat-transition-ms: 0ms;
   position: relative;
   overflow: hidden;
-  width: min(280px, 65vw);
+  width: min(360px, 85vw);
   aspect-ratio: 1;
   border-radius: 999px;
   border: 4px solid color-mix(in srgb, white, transparent 65%);
@@ -208,78 +217,49 @@ summary {
   letter-spacing: 0.03em;
   isolation: isolate;
   filter: saturate(var(--tap-saturation));
-  transition:
-    transform 100ms ease,
-    background 140ms ease,
-    border-color 140ms ease,
-    filter var(--tap-sat-transition-ms) linear;
+  transition: transform 100ms ease, background 140ms ease, border-color 140ms ease, filter var(--tap-sat-transition-ms) linear;
 }
-
 
 .tap-zone span {
   font-size: 2rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  transition: opacity 120ms ease;
 }
 
 .tap-zone.listen-muted {
   --tap-saturation: 0.2;
-  --tap-sat-transition-ms: 0ms;
 }
-
 
 .tap-zone.listen-release {
   --tap-saturation: 1;
 }
+
 .tap-zone::before {
   content: "";
   position: absolute;
   inset: auto 0 0;
   height: var(--fill-height);
-  border-radius: 0;
   background: var(--score-color);
   z-index: -1;
 }
 
-.tap-zone.loss-flash {
-  animation: lossFlash 50ms ease-out;
-}
+.tap-zone.loss-flash { animation: lossFlash 50ms ease-out; }
 
 @keyframes lossFlash {
-  from {
-    filter: brightness(1.25);
-    transform: scale(0.99);
-  }
-
-  to {
-    filter: none;
-    transform: scale(1);
-  }
+  from { filter: brightness(1.25); transform: scale(0.99); }
+  to { filter: none; transform: scale(1); }
 }
 
-.tap-zone.active {
-  border-color: color-mix(in srgb, var(--ok), white 25%);
-}
+.tap-zone.active { border-color: color-mix(in srgb, var(--ok), white 25%); }
+.tap-zone.pressed { transform: scale(0.98); }
 
-.tap-zone.pressed {
-  transform: scale(0.98);
+.result-screen {
+  min-height: calc(100vh - 2rem);
+  place-items: center;
+  align-content: center;
+  text-align: center;
 }
 
 @media (max-width: 700px) {
-  .dual-slider-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dual-slider-row label {
-    min-width: 0;
-  }
-
-  .control-buttons {
-    flex-direction: column;
-  }
-
-  .control-buttons button {
-    width: 100%;
-  }
+  .control-buttons { flex-direction: column; }
+  .control-buttons button { width: 100%; }
 }

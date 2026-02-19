@@ -1,8 +1,8 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.8';
-const LEVEL_DEFAULT = 5;
+const APP_VERSION = '1.0.9';
+const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
 const BPM_LEVEL1_DEFAULT = 60;
@@ -22,14 +22,17 @@ const CALIBRATION_BEATS = 16;
 const CALIBRATION_MAX_DELAY_MS = 500;
 const SCHED_LOOKAHEAD_MS = 120;
 const SCHED_INTERVAL_MS = 25;
-const MAX_SCORE = 5;
+const MAX_SCORE = 50;
+const SCORE_RECOVERY_PER_SECOND_DEFAULT = 1;
+const SCORE_RECOVERY_PER_SECOND_MIN = 0;
+const SCORE_RECOVERY_PER_SECOND_MAX = 10;
 
 const FIRST_HIT_INDICES = [1, 2, 3];
 const FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0];
 const FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT = [10, 5, 10];
 const JUMP_VALUES = [1, 2, 3, 4, 5];
 const JUMP_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0, 10, 0];
-const JUMP_WEIGHTS_LEVEL10_DEFAULT = [2, 6, 10, 1, 2];
+const JUMP_WEIGHTS_LEVEL10_DEFAULT = [1, 5, 10, 2, 4];
 
 const DRUM_GAIN = {
   snare: 0.5,
@@ -46,7 +49,8 @@ const DRUM_TUNING = {
 };
 
 const START_COUNTIN_BEATS = 4;
-const LISTEN_RECOVERY_DURATION_MS = 100;
+const PATTERNS_PER_LEVEL = 2;
+const SCORE_REGEN_INTERVAL_MS = 1000;
 
 const PHASE = {
   LISTEN: 'LISTEN',
@@ -65,7 +69,8 @@ const STORAGE_KEYS = {
   weightJumpLevel10: 'rhythmTrainer.weightJumpLevel10',
   latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
   hitTolerance: 'rhythmTrainer.hitTolerance',
-  hitWindowMs: 'rhythmTrainer.hitWindowMs'
+  hitWindowMs: 'rhythmTrainer.hitWindowMs',
+  scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond'
 };
 
 function getInterpolationFactor(level = LEVEL_DEFAULT) {
@@ -126,8 +131,17 @@ function loadStoredNumber(key) {
 }
 
 const ui = {
-  level: document.getElementById('level'),
-  levelValue: document.getElementById('levelValue'),
+  startScreen: document.getElementById('startScreen'),
+  gameScreen: document.getElementById('gameScreen'),
+  resultScreen: document.getElementById('resultScreen'),
+  startGame: document.getElementById('startGame'),
+  stopGame: document.getElementById('stopGame'),
+  backToMenu: document.getElementById('backToMenu'),
+  startLevel: document.getElementById('startLevel'),
+  startLevelValue: document.getElementById('startLevelValue'),
+  gameLevelValue: document.getElementById('gameLevelValue'),
+  resultTitle: document.getElementById('resultTitle'),
+  resultText: document.getElementById('resultText'),
   bpmLevel1: document.getElementById('bpmLevel1'),
   bpmLevel1Value: document.getElementById('bpmLevel1Value'),
   bpmLevel10: document.getElementById('bpmLevel10'),
@@ -139,11 +153,12 @@ const ui = {
   hitToleranceDisplay: document.getElementById('hitToleranceDisplay'),
   hitWindow: document.getElementById('hitWindow'),
   hitWindowDisplay: document.getElementById('hitWindowDisplay'),
+  scoreRecoveryPerSecond: document.getElementById('scoreRecoveryPerSecond'),
+  scoreRecoveryPerSecondValue: document.getElementById('scoreRecoveryPerSecondValue'),
   clearCache: document.getElementById('clearCache'),
   calibration: document.getElementById('calibration'),
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
-  startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
   tapZoneLabel: document.getElementById('tapZoneLabel'),
   endpointInputs: [
@@ -166,10 +181,12 @@ const ui = {
   ]
 };
 
+
 const state = {
   audioCtx: null,
   noiseBuffer: null,
   isRunning: false,
+  screen: 'start',
   isCalibrating: false,
   level: LEVEL_DEFAULT,
   bpmLevel1: BPM_LEVEL1_DEFAULT,
@@ -178,6 +195,7 @@ const state = {
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
   hitTolerance: HIT_TOLERANCE_DEFAULT,
   hitWindowMs: HIT_WINDOW_DEFAULT_MS,
+  scoreRecoveryPerSecond: SCORE_RECOVERY_PER_SECOND_DEFAULT,
 
   firstHitWeightsLevel1: [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT],
   firstHitWeightsLevel10: [...FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT],
@@ -203,6 +221,7 @@ const state = {
   displayedScore: MAX_SCORE,
   scoreRecoveryFrame: null,
   scoreStepTimer: null,
+  scoreRegenTimer: null,
   listenSaturationStartTimer: null,
   listenSaturationEndTimer: null,
 
@@ -213,7 +232,9 @@ const state = {
   logEvents: [],
   tapMeasureStart: 0,
   tapPattern: null,
-  isIntroduction: false
+  isIntroduction: false,
+  completedPatternsInLevel: 0,
+  startLevel: LEVEL_DEFAULT
 };
 
 function weightedChoice(values, weights) {
@@ -301,7 +322,8 @@ function syncInterpolatedSettings() {
 function applyPersistedSettings() {
   const storedLevel = loadStoredNumber(STORAGE_KEYS.level);
   if (storedLevel !== null) {
-    state.level = clamp(Math.round(storedLevel), LEVEL_MIN, LEVEL_MAX);
+    state.startLevel = clamp(Math.round(storedLevel), LEVEL_MIN, LEVEL_MAX);
+    state.level = state.startLevel;
   }
 
   const storedBpmLevel1 = loadStoredNumber(STORAGE_KEYS.bpmLevel1);
@@ -347,6 +369,15 @@ function applyPersistedSettings() {
   const storedHitWindowMs = loadStoredNumber(STORAGE_KEYS.hitWindowMs);
   if (storedHitWindowMs !== null) {
     state.hitWindowMs = Math.round(storedHitWindowMs);
+  }
+
+  const storedScoreRecoveryPerSecond = loadStoredNumber(STORAGE_KEYS.scoreRecoveryPerSecond);
+  if (storedScoreRecoveryPerSecond !== null) {
+    state.scoreRecoveryPerSecond = clamp(
+      Math.round(storedScoreRecoveryPerSecond),
+      SCORE_RECOVERY_PER_SECOND_MIN,
+      SCORE_RECOVERY_PER_SECOND_MAX
+    );
   }
 
   syncInterpolatedSettings();
@@ -470,11 +501,39 @@ function formatErrorMs(ms) {
   return `${Math.abs(rounded)} ms early`;
 }
 
+function showStartScreen() {
+  state.screen = 'start';
+  ui.startScreen.classList.remove('hidden');
+  ui.gameScreen.classList.add('hidden');
+  ui.resultScreen.classList.add('hidden');
+}
+
+function showGameScreen() {
+  state.screen = 'game';
+  ui.startScreen.classList.add('hidden');
+  ui.gameScreen.classList.remove('hidden');
+  ui.resultScreen.classList.add('hidden');
+}
+
+function showResultScreen(title, text) {
+  state.screen = 'result';
+  ui.resultTitle.textContent = title;
+  ui.resultText.textContent = text;
+  ui.startScreen.classList.add('hidden');
+  ui.gameScreen.classList.add('hidden');
+  ui.resultScreen.classList.remove('hidden');
+}
+
 function consumeScorePoint() {
   if (state.score <= 0) return;
-  state.score -= 1;
+  state.score = Math.max(0, state.score - 1);
   animateDisplayedScoreTo(state.score);
   flashScore();
+
+  if (state.score <= 0) {
+    stopEngine();
+    showResultScreen('Game Over', `You reached level ${state.level}.`);
+  }
 }
 
 function prepareTapPhase(measureStart, patternForMeasure) {
@@ -612,13 +671,13 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
       ui.tapZone.classList.remove('listen-muted', 'listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       stopScoreRecoveryAnimation();
+  stopScoreRegeneration();
       prepareTapPhase(measureStart, patternForMeasure);
     } else if (phase === PHASE.LISTEN) {
       ui.tapZone.classList.add('listen-muted');
       ui.tapZone.classList.remove('listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       scheduleListenSaturationRelease(measureStart);
-      startListenScoreRecovery(LISTEN_RECOVERY_DURATION_MS);
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 
@@ -715,44 +774,22 @@ function animateDisplayedScoreTo(targetScore) {
   }, 50);
 }
 
-function startListenScoreRecovery(durationMs) {
-  stopScoreRecoveryAnimation();
-
-  const fromScore = clamp(state.score, 0, MAX_SCORE);
-  if (fromScore >= MAX_SCORE || durationMs <= 0) {
-    state.score = MAX_SCORE;
-    state.displayedScore = MAX_SCORE;
-    updateScoreUI();
-    return;
+function stopScoreRegeneration() {
+  if (state.scoreRegenTimer !== null) {
+    clearInterval(state.scoreRegenTimer);
+    state.scoreRegenTimer = null;
   }
+}
 
-  stopScoreStepAnimation();
-
-  const startTime = performance.now();
-
-  const tick = (now) => {
-    if (!state.isRunning || state.livePhase !== PHASE.LISTEN) {
-      state.scoreRecoveryFrame = null;
-      return;
-    }
-
-    const progress = clamp((now - startTime) / durationMs, 0, 1);
-    state.score = fromScore + ((MAX_SCORE - fromScore) * progress);
-    state.displayedScore = state.score;
-    updateScoreUI();
-
-    if (progress < 1) {
-      state.scoreRecoveryFrame = requestAnimationFrame(tick);
-      return;
-    }
-
-    state.score = MAX_SCORE;
-    state.displayedScore = MAX_SCORE;
-    state.scoreRecoveryFrame = null;
-    updateScoreUI();
-  };
-
-  state.scoreRecoveryFrame = requestAnimationFrame(tick);
+function startScoreRegeneration() {
+  stopScoreRegeneration();
+  state.scoreRegenTimer = setInterval(() => {
+    if (!state.isRunning) return;
+    if (state.score >= MAX_SCORE) return;
+    const nextScore = clamp(state.score + state.scoreRecoveryPerSecond, 0, MAX_SCORE);
+    state.score = nextScore;
+    animateDisplayedScoreTo(state.score);
+  }, SCORE_REGEN_INTERVAL_MS);
 }
 
 function scheduleLoop() {
@@ -775,6 +812,19 @@ function scheduleLoop() {
       if (state.repetition > REPS_PER_PATTERN) {
         state.repetition = 1;
         state.patternNumber += 1;
+        state.completedPatternsInLevel += 1;
+
+        if (state.completedPatternsInLevel >= PATTERNS_PER_LEVEL) {
+          state.completedPatternsInLevel = 0;
+          if (state.level >= LEVEL_MAX) {
+            stopEngine();
+            showResultScreen('Victory!', 'You finished level 10.');
+            return;
+          }
+          state.level += 1;
+          syncInterpolatedSettings();
+        }
+
         state.pattern = generatePattern();
       }
     }
@@ -788,7 +838,10 @@ function startEngine() {
   if (!state.audioCtx || state.isCalibrating) return;
 
   state.isRunning = true;
+  state.level = state.startLevel;
+  syncInterpolatedSettings();
   state.patternNumber = 1;
+  state.completedPatternsInLevel = 0;
   state.pattern = generatePattern();
   state.repetition = 1;
   state.phase = PHASE.LISTEN;
@@ -796,8 +849,8 @@ function startEngine() {
   state.livePhase = PHASE.LISTEN;
   state.expectedHits = [];
   state.tapPattern = null;
-  state.score = 0;
-  state.displayedScore = 0;
+  state.score = MAX_SCORE;
+  state.displayedScore = MAX_SCORE;
   state.isIntroduction = true;
 
   // Introduction : phase d'entrée uniquement avec la hi-hat avant le début du jeu.
@@ -817,9 +870,9 @@ function startEngine() {
 
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);
   state.scheduleTimer = setInterval(scheduleLoop, SCHED_INTERVAL_MS);
+  startScoreRegeneration();
   updateScoreUI();
   updateStaticUI();
-  ui.startStop.textContent = 'Stop';
 }
 
 function stopEngine() {
@@ -831,6 +884,7 @@ function stopEngine() {
   }
 
   stopScoreRecoveryAnimation();
+  stopScoreRegeneration();
   stopScoreStepAnimation();
   clearListenSaturationTimers();
   state.expectedHits = [];
@@ -839,17 +893,7 @@ function stopEngine() {
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
-  ui.startStop.textContent = 'Start';
   updateStaticUI();
-}
-
-function toggleEngine() {
-  unlockAudio();
-  if (state.isRunning) {
-    stopEngine();
-    return;
-  }
-  startEngine();
 }
 
 
@@ -872,6 +916,7 @@ function updateStaticUI() {
   const isTapActive = (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating);
   ui.tapZone.classList.toggle('active', isTapActive);
   ui.tapZoneLabel.textContent = getTapZoneLabel();
+  ui.gameLevelValue.textContent = String(state.level);
   document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
 }
 
@@ -1035,10 +1080,12 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.latencyOffsetMs);
     window.localStorage.removeItem(STORAGE_KEYS.hitTolerance);
     window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
+    window.localStorage.removeItem(STORAGE_KEYS.scoreRecoveryPerSecond);
   } catch (_error) {
     // Ignore storage errors
   }
 
+  state.startLevel = LEVEL_DEFAULT;
   state.level = LEVEL_DEFAULT;
   state.bpmLevel1 = BPM_LEVEL1_DEFAULT;
   state.bpmLevel10 = BPM_LEVEL10_DEFAULT;
@@ -1050,9 +1097,10 @@ function clearLocalCache() {
   state.latencyOffsetMs = INPUT_LATENCY_DEFAULT_MS;
   state.hitTolerance = HIT_TOLERANCE_DEFAULT;
   state.hitWindowMs = HIT_WINDOW_DEFAULT_MS;
+  state.scoreRecoveryPerSecond = SCORE_RECOVERY_PER_SECOND_DEFAULT;
 
-  ui.level.value = String(state.level);
-  ui.levelValue.textContent = String(state.level);
+  ui.startLevel.value = String(state.startLevel);
+  ui.startLevelValue.textContent = String(state.startLevel);
   ui.bpmLevel1.value = String(state.bpmLevel1);
   ui.bpmLevel1Value.textContent = String(state.bpmLevel1);
   ui.bpmLevel10.value = String(state.bpmLevel10);
@@ -1070,6 +1118,8 @@ function clearLocalCache() {
   ui.latency.value = String(state.latencyOffsetMs);
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
   ui.hitTolerance.value = String(state.hitTolerance);
+  ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
+  ui.scoreRecoveryPerSecondValue.textContent = String(state.scoreRecoveryPerSecond);
   updateHitWindowUI();
   updateHitToleranceUI();
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
@@ -1115,16 +1165,16 @@ function bindEndpointControls() {
   });
 }
 
-ui.level.min = String(LEVEL_MIN);
-ui.level.max = String(LEVEL_MAX);
+ui.startLevel.min = String(LEVEL_MIN);
+ui.startLevel.max = String(LEVEL_MAX);
 ui.bpmLevel1.min = String(BPM_MIN);
 ui.bpmLevel1.max = String(BPM_MAX);
 ui.bpmLevel10.min = String(BPM_MIN);
 ui.bpmLevel10.max = String(BPM_MAX);
 applyPersistedSettings();
 
-ui.level.value = String(state.level);
-ui.levelValue.textContent = String(state.level);
+ui.startLevel.value = String(state.startLevel);
+ui.startLevelValue.textContent = String(state.startLevel);
 ui.bpmLevel1.value = String(state.bpmLevel1);
 ui.bpmLevel1Value.textContent = String(state.bpmLevel1);
 ui.bpmLevel10.value = String(state.bpmLevel10);
@@ -1136,14 +1186,15 @@ ui.latencyValue.textContent = String(state.latencyOffsetMs);
 ui.hitTolerance.min = String(HIT_TOLERANCE_MIN);
 ui.hitTolerance.max = String(HIT_TOLERANCE_MAX);
 ui.hitTolerance.value = String(state.hitTolerance);
+ui.scoreRecoveryPerSecond.min = String(SCORE_RECOVERY_PER_SECOND_MIN);
+ui.scoreRecoveryPerSecond.max = String(SCORE_RECOVERY_PER_SECOND_MAX);
+ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
+ui.scoreRecoveryPerSecondValue.textContent = String(state.scoreRecoveryPerSecond);
 
-ui.level.addEventListener('input', (e) => {
-  state.level = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
-  ui.levelValue.textContent = String(state.level);
-  saveSetting(STORAGE_KEYS.level, state.level);
-  syncInterpolatedSettings();
-  updateHitWindowUI();
-  updateHitToleranceUI();
+ui.startLevel.addEventListener('input', (e) => {
+  state.startLevel = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
+  ui.startLevelValue.textContent = String(state.startLevel);
+  saveSetting(STORAGE_KEYS.level, state.startLevel);
 });
 
 ui.bpmLevel1.addEventListener('input', (e) => {
@@ -1186,7 +1237,28 @@ ui.hitTolerance.addEventListener('input', (e) => {
   updateHitToleranceUI();
 });
 
-ui.startStop.addEventListener('click', toggleEngine);
+ui.scoreRecoveryPerSecond.addEventListener('input', (e) => {
+  state.scoreRecoveryPerSecond = clamp(Math.round(Number(e.target.value)), SCORE_RECOVERY_PER_SECOND_MIN, SCORE_RECOVERY_PER_SECOND_MAX);
+  ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
+  ui.scoreRecoveryPerSecondValue.textContent = String(state.scoreRecoveryPerSecond);
+  saveSetting(STORAGE_KEYS.scoreRecoveryPerSecond, state.scoreRecoveryPerSecond);
+});
+
+ui.startGame.addEventListener('click', () => {
+  unlockAudio();
+  showGameScreen();
+  startEngine();
+});
+
+ui.stopGame.addEventListener('click', () => {
+  stopEngine();
+  showStartScreen();
+});
+
+ui.backToMenu.addEventListener('click', () => {
+  showStartScreen();
+});
+
 ui.calibration.addEventListener('click', startCalibration);
 ui.clearCache.addEventListener('click', clearLocalCache);
 ui.tapZone.addEventListener('animationend', () => {
@@ -1203,11 +1275,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space') return;
   e.preventDefault();
 
-  if (!state.isRunning && !state.isCalibrating) {
-    toggleEngine();
-    return;
-  }
-
+  if (!state.isRunning || state.isCalibrating) return;
   unlockAudio();
   recordTap();
 });
@@ -1218,4 +1286,6 @@ updateHitWindowUI();
 updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();
+showStartScreen();
 console.info(`RhythmGame version ${APP_VERSION}`);
+

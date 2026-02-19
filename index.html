@@ -4,159 +4,174 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
-    <link rel="stylesheet" href="style.css?v=1.0.8" />
-    <script src="main.js?v=1.0.8" defer></script>
+    <link rel="stylesheet" href="style.css?v=1.0.9" />
+    <script src="main.js?v=1.0.9" defer></script>
   </head>
   <body>
     <main class="app">
-      <section class="game">
-        <label>
-          Level: <span id="levelValue">1</span>
-          <input id="level" type="range" min="1" max="10" step="1" value="1" />
+      <section id="startScreen" class="screen start-screen">
+        <button id="startGame" class="start-button" type="button">START</button>
+
+        <label class="debug-level">
+          Debug: select start level (1-10): <span id="startLevelValue">1</span>
+          <input id="startLevel" type="range" min="1" max="10" step="1" value="1" />
         </label>
 
-        <button id="startStop" type="button">Start</button>
+        <section class="controls card">
+          <label>
+            Input latency offset (ms): <span id="latencyValue">15</span>
+            <input id="latency" type="range" min="0" max="200" step="5" value="15" />
+          </label>
 
+          <p id="calibrationResult" class="calibration-result">Calibration non lancée.</p>
+
+          <div class="control-buttons">
+            <button id="calibration" type="button">Calibration</button>
+            <button id="clearCache" type="button">Reset parameters</button>
+          </div>
+        </section>
+
+        <details class="probabilities card" id="probabilitiesPanel">
+          <summary>Settings</summary>
+
+          <label>
+            Hit window (ms): <span id="hitWindowDisplay">250</span>
+            <input id="hitWindow" type="range" min="250" max="250" step="1" value="250" />
+          </label>
+
+          <label>
+            Hit tolerance: <span id="hitToleranceDisplay">50 (125 ms)</span>
+            <input id="hitTolerance" type="range" min="0" max="100" step="1" value="50" />
+          </label>
+
+          <label>
+            Points recovered per second: <span id="scoreRecoveryPerSecondValue">1</span>
+            <input id="scoreRecoveryPerSecond" type="range" min="0" max="10" step="1" value="1" />
+          </label>
+
+          <fieldset>
+            <legend>BPM by level endpoints</legend>
+            <div class="dual-slider-row">
+              <label>
+                BPM @ lvl 1: <span id="bpmLevel1Value">60</span>
+                <input id="bpmLevel1" type="range" min="40" max="120" step="1" value="60" />
+              </label>
+              <label>
+                BPM @ lvl 10: <span id="bpmLevel10Value">120</span>
+                <input id="bpmLevel10" type="range" min="40" max="120" step="1" value="120" />
+              </label>
+            </div>
+            <p class="computed-setting">Interpolated BPM: <span id="bpmValue">87</span></p>
+          </fieldset>
+
+          <fieldset>
+            <legend>First hit index weights</legend>
+            <div class="dual-slider-row">
+              <label>
+                Index 2 @ lvl 1: <span id="weightFirst2Level1Value">0</span>
+                <input id="weightFirst2Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                Index 2 @ lvl 10: <span id="weightFirst2Level10Value">10</span>
+                <input id="weightFirst2Level10" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Index 3 @ lvl 1: <span id="weightFirst3Level1Value">10</span>
+                <input id="weightFirst3Level1" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+              <label>
+                Index 3 @ lvl 10: <span id="weightFirst3Level10Value">5</span>
+                <input id="weightFirst3Level10" type="range" min="0" max="10" step="1" value="5" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Index 4 @ lvl 1: <span id="weightFirst4Level1Value">0</span>
+                <input id="weightFirst4Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                Index 4 @ lvl 10: <span id="weightFirst4Level10Value">10</span>
+                <input id="weightFirst4Level10" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Jump size weights</legend>
+            <div class="dual-slider-row">
+              <label>
+                Jump 1 @ lvl 1: <span id="weightJump1Level1Value">0</span>
+                <input id="weightJump1Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                Jump 1 @ lvl 10: <span id="weightJump1Level10Value">1</span>
+                <input id="weightJump1Level10" type="range" min="0" max="10" step="1" value="1" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Jump 2 @ lvl 1: <span id="weightJump2Level1Value">10</span>
+                <input id="weightJump2Level1" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+              <label>
+                Jump 2 @ lvl 10: <span id="weightJump2Level10Value">5</span>
+                <input id="weightJump2Level10" type="range" min="0" max="10" step="1" value="5" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Jump 3 @ lvl 1: <span id="weightJump3Level1Value">0</span>
+                <input id="weightJump3Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                Jump 3 @ lvl 10: <span id="weightJump3Level10Value">10</span>
+                <input id="weightJump3Level10" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Jump 4 @ lvl 1: <span id="weightJump4Level1Value">10</span>
+                <input id="weightJump4Level1" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+              <label>
+                Jump 4 @ lvl 10: <span id="weightJump4Level10Value">2</span>
+                <input id="weightJump4Level10" type="range" min="0" max="10" step="1" value="2" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Jump 5 @ lvl 1: <span id="weightJump5Level1Value">0</span>
+                <input id="weightJump5Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                Jump 5 @ lvl 10: <span id="weightJump5Level10Value">4</span>
+                <input id="weightJump5Level10" type="range" min="0" max="10" step="1" value="4" />
+              </label>
+            </div>
+          </fieldset>
+        </details>
+
+        <details class="card test-log-panel">
+          <summary>Test log</summary>
+          <pre id="testLog" class="test-log">Le log des erreurs s'affichera ici pendant la phase TAP.</pre>
+        </details>
+      </section>
+
+      <section id="gameScreen" class="screen game-screen hidden">
+        <button id="stopGame" class="stop-button" type="button">STOP</button>
+        <p class="game-level">Level <span id="gameLevelValue">1</span></p>
         <button id="tapZone" class="tap-zone" aria-label="Tap input zone">
           <span id="tapZoneLabel"></span>
         </button>
       </section>
 
-      <section class="controls card">
-        <label>
-          Input latency offset (ms): <span id="latencyValue">15</span>
-          <input id="latency" type="range" min="0" max="200" step="5" value="15" />
-        </label>
-
-        <p id="calibrationResult" class="calibration-result">Calibration non lancée.</p>
-
-        <div class="control-buttons">
-          <button id="calibration" type="button">Calibration</button>
-          <button id="clearCache" type="button">Reset parameters</button>
-        </div>
+      <section id="resultScreen" class="screen result-screen hidden">
+        <h1 id="resultTitle"></h1>
+        <p id="resultText"></p>
+        <button id="backToMenu" type="button">Back to menu</button>
       </section>
-
-      <details class="probabilities card" id="probabilitiesPanel">
-        <summary>Settings</summary>
-
-        <label>
-          Hit window (ms): <span id="hitWindowDisplay">250</span>
-          <input id="hitWindow" type="range" min="250" max="250" step="1" value="250" />
-        </label>
-
-        <label>
-          Hit tolerance: <span id="hitToleranceDisplay">50 (125 ms)</span>
-          <input id="hitTolerance" type="range" min="0" max="100" step="1" value="50" />
-        </label>
-
-        <fieldset>
-          <legend>BPM by level endpoints</legend>
-          <div class="dual-slider-row">
-            <label>
-              BPM @ lvl 1: <span id="bpmLevel1Value">60</span>
-              <input id="bpmLevel1" type="range" min="40" max="120" step="1" value="60" />
-            </label>
-            <label>
-              BPM @ lvl 10: <span id="bpmLevel10Value">120</span>
-              <input id="bpmLevel10" type="range" min="40" max="120" step="1" value="120" />
-            </label>
-          </div>
-          <p class="computed-setting">Interpolated BPM: <span id="bpmValue">87</span></p>
-        </fieldset>
-
-        <fieldset>
-          <legend>First hit index weights</legend>
-          <div class="dual-slider-row">
-            <label>
-              Index 2 @ lvl 1: <span id="weightFirst2Level1Value">0</span>
-              <input id="weightFirst2Level1" type="range" min="0" max="10" step="1" value="0" />
-            </label>
-            <label>
-              Index 2 @ lvl 10: <span id="weightFirst2Level10Value">10</span>
-              <input id="weightFirst2Level10" type="range" min="0" max="10" step="1" value="10" />
-            </label>
-          </div>
-          <div class="dual-slider-row">
-            <label>
-              Index 3 @ lvl 1: <span id="weightFirst3Level1Value">10</span>
-              <input id="weightFirst3Level1" type="range" min="0" max="10" step="1" value="10" />
-            </label>
-            <label>
-              Index 3 @ lvl 10: <span id="weightFirst3Level10Value">5</span>
-              <input id="weightFirst3Level10" type="range" min="0" max="10" step="1" value="5" />
-            </label>
-          </div>
-          <div class="dual-slider-row">
-            <label>
-              Index 4 @ lvl 1: <span id="weightFirst4Level1Value">0</span>
-              <input id="weightFirst4Level1" type="range" min="0" max="10" step="1" value="0" />
-            </label>
-            <label>
-              Index 4 @ lvl 10: <span id="weightFirst4Level10Value">10</span>
-              <input id="weightFirst4Level10" type="range" min="0" max="10" step="1" value="10" />
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Jump size weights</legend>
-          <div class="dual-slider-row">
-            <label>
-              Jump 1 @ lvl 1: <span id="weightJump1Level1Value">0</span>
-              <input id="weightJump1Level1" type="range" min="0" max="10" step="1" value="0" />
-            </label>
-            <label>
-              Jump 1 @ lvl 10: <span id="weightJump1Level10Value">2</span>
-              <input id="weightJump1Level10" type="range" min="0" max="10" step="1" value="2" />
-            </label>
-          </div>
-          <div class="dual-slider-row">
-            <label>
-              Jump 2 @ lvl 1: <span id="weightJump2Level1Value">10</span>
-              <input id="weightJump2Level1" type="range" min="0" max="10" step="1" value="10" />
-            </label>
-            <label>
-              Jump 2 @ lvl 10: <span id="weightJump2Level10Value">6</span>
-              <input id="weightJump2Level10" type="range" min="0" max="10" step="1" value="6" />
-            </label>
-          </div>
-          <div class="dual-slider-row">
-            <label>
-              Jump 3 @ lvl 1: <span id="weightJump3Level1Value">0</span>
-              <input id="weightJump3Level1" type="range" min="0" max="10" step="1" value="0" />
-            </label>
-            <label>
-              Jump 3 @ lvl 10: <span id="weightJump3Level10Value">10</span>
-              <input id="weightJump3Level10" type="range" min="0" max="10" step="1" value="10" />
-            </label>
-          </div>
-          <div class="dual-slider-row">
-            <label>
-              Jump 4 @ lvl 1: <span id="weightJump4Level1Value">10</span>
-              <input id="weightJump4Level1" type="range" min="0" max="10" step="1" value="10" />
-            </label>
-            <label>
-              Jump 4 @ lvl 10: <span id="weightJump4Level10Value">1</span>
-              <input id="weightJump4Level10" type="range" min="0" max="10" step="1" value="1" />
-            </label>
-          </div>
-          <div class="dual-slider-row">
-            <label>
-              Jump 5 @ lvl 1: <span id="weightJump5Level1Value">0</span>
-              <input id="weightJump5Level1" type="range" min="0" max="10" step="1" value="0" />
-            </label>
-            <label>
-              Jump 5 @ lvl 10: <span id="weightJump5Level10Value">2</span>
-              <input id="weightJump5Level10" type="range" min="0" max="10" step="1" value="2" />
-            </label>
-          </div>
-        </fieldset>
-      </details>
-
-      <details class="card test-log-panel">
-        <summary>Test log</summary>
-        <pre id="testLog" class="test-log">Le log des erreurs s'affichera ici pendant la phase TAP.</pre>
-      </details>
     </main>
   </body>
 </html>

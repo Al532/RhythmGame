@@ -1,7 +1,12 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const BPM_DEFAULT = 90;
+const APP_VERSION = '1.0.1';
+const LEVEL_DEFAULT = 5;
+const LEVEL_MIN = 1;
+const LEVEL_MAX = 10;
+const BPM_LEVEL1_DEFAULT = 70;
+const BPM_LEVEL10_DEFAULT = 110;
 const BPM_MIN = 40;
 const BPM_MAX = 120;
 const INPUT_LATENCY_DEFAULT_MS = 15;
@@ -48,11 +53,51 @@ const PHASE = {
 
 
 const STORAGE_KEYS = {
-  bpm: 'rhythmTrainer.bpm',
+  level: 'rhythmTrainer.level',
+  bpmLevel1: 'rhythmTrainer.bpmLevel1',
+  bpmLevel10: 'rhythmTrainer.bpmLevel10',
+  weightFirstLevel1: 'rhythmTrainer.weightFirstLevel1',
+  weightFirstLevel10: 'rhythmTrainer.weightFirstLevel10',
+  weightJumpLevel1: 'rhythmTrainer.weightJumpLevel1',
+  weightJumpLevel10: 'rhythmTrainer.weightJumpLevel10',
   latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
   hitTolerance: 'rhythmTrainer.hitTolerance',
   hitWindowMs: 'rhythmTrainer.hitWindowMs'
 };
+
+function getInterpolationFactor() {
+  return (state.level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN);
+}
+
+function interpolateLinear(from, to) {
+  return from + ((to - from) * getInterpolationFactor());
+}
+
+function interpolateRounded(from, to) {
+  return Math.round(interpolateLinear(from, to));
+}
+
+function parseStoredArray(key, expectedLength) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length !== expectedLength) return null;
+    const numbers = parsed.map((value) => Number(value));
+    if (numbers.some((value) => !Number.isFinite(value))) return null;
+    return numbers;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function saveArraySetting(key, values) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(values));
+  } catch (_error) {
+    // Ignore storage errors
+  }
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -78,7 +123,12 @@ function loadStoredNumber(key) {
 }
 
 const ui = {
-  bpm: document.getElementById('bpm'),
+  level: document.getElementById('level'),
+  levelValue: document.getElementById('levelValue'),
+  bpmLevel1: document.getElementById('bpmLevel1'),
+  bpmLevel1Value: document.getElementById('bpmLevel1Value'),
+  bpmLevel10: document.getElementById('bpmLevel10'),
+  bpmLevel10Value: document.getElementById('bpmLevel10Value'),
   bpmValue: document.getElementById('bpmValue'),
   latency: document.getElementById('latency'),
   latencyValue: document.getElementById('latencyValue'),
@@ -92,15 +142,23 @@ const ui = {
   testLog: document.getElementById('testLog'),
   startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
-  probabilityInputs: [
-    { input: document.getElementById('weightFirst2'), value: document.getElementById('weightFirst2Value'), group: 'first', index: 0 },
-    { input: document.getElementById('weightFirst3'), value: document.getElementById('weightFirst3Value'), group: 'first', index: 1 },
-    { input: document.getElementById('weightFirst4'), value: document.getElementById('weightFirst4Value'), group: 'first', index: 2 },
-    { input: document.getElementById('weightJump1'), value: document.getElementById('weightJump1Value'), group: 'jump', index: 0 },
-    { input: document.getElementById('weightJump2'), value: document.getElementById('weightJump2Value'), group: 'jump', index: 1 },
-    { input: document.getElementById('weightJump3'), value: document.getElementById('weightJump3Value'), group: 'jump', index: 2 },
-    { input: document.getElementById('weightJump4'), value: document.getElementById('weightJump4Value'), group: 'jump', index: 3 },
-    { input: document.getElementById('weightJump5'), value: document.getElementById('weightJump5Value'), group: 'jump', index: 4 }
+  endpointInputs: [
+    { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
+    { input: document.getElementById('weightFirst2Level10'), value: document.getElementById('weightFirst2Level10Value'), key: 'first', level: 10, index: 0 },
+    { input: document.getElementById('weightFirst3Level1'), value: document.getElementById('weightFirst3Level1Value'), key: 'first', level: 1, index: 1 },
+    { input: document.getElementById('weightFirst3Level10'), value: document.getElementById('weightFirst3Level10Value'), key: 'first', level: 10, index: 1 },
+    { input: document.getElementById('weightFirst4Level1'), value: document.getElementById('weightFirst4Level1Value'), key: 'first', level: 1, index: 2 },
+    { input: document.getElementById('weightFirst4Level10'), value: document.getElementById('weightFirst4Level10Value'), key: 'first', level: 10, index: 2 },
+    { input: document.getElementById('weightJump1Level1'), value: document.getElementById('weightJump1Level1Value'), key: 'jump', level: 1, index: 0 },
+    { input: document.getElementById('weightJump1Level10'), value: document.getElementById('weightJump1Level10Value'), key: 'jump', level: 10, index: 0 },
+    { input: document.getElementById('weightJump2Level1'), value: document.getElementById('weightJump2Level1Value'), key: 'jump', level: 1, index: 1 },
+    { input: document.getElementById('weightJump2Level10'), value: document.getElementById('weightJump2Level10Value'), key: 'jump', level: 10, index: 1 },
+    { input: document.getElementById('weightJump3Level1'), value: document.getElementById('weightJump3Level1Value'), key: 'jump', level: 1, index: 2 },
+    { input: document.getElementById('weightJump3Level10'), value: document.getElementById('weightJump3Level10Value'), key: 'jump', level: 10, index: 2 },
+    { input: document.getElementById('weightJump4Level1'), value: document.getElementById('weightJump4Level1Value'), key: 'jump', level: 1, index: 3 },
+    { input: document.getElementById('weightJump4Level10'), value: document.getElementById('weightJump4Level10Value'), key: 'jump', level: 10, index: 3 },
+    { input: document.getElementById('weightJump5Level1'), value: document.getElementById('weightJump5Level1Value'), key: 'jump', level: 1, index: 4 },
+    { input: document.getElementById('weightJump5Level10'), value: document.getElementById('weightJump5Level10Value'), key: 'jump', level: 10, index: 4 }
   ]
 };
 
@@ -109,11 +167,18 @@ const state = {
   noiseBuffer: null,
   isRunning: false,
   isCalibrating: false,
-  bpm: BPM_DEFAULT,
+  level: LEVEL_DEFAULT,
+  bpmLevel1: BPM_LEVEL1_DEFAULT,
+  bpmLevel10: BPM_LEVEL10_DEFAULT,
+  bpm: interpolateRounded(BPM_LEVEL1_DEFAULT, BPM_LEVEL10_DEFAULT),
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
   hitTolerance: HIT_TOLERANCE_DEFAULT,
   hitWindowMs: HIT_WINDOW_DEFAULT_MS,
 
+  firstHitWeightsLevel1: [...FIRST_HIT_WEIGHTS_DEFAULT],
+  firstHitWeightsLevel10: [...FIRST_HIT_WEIGHTS_DEFAULT],
+  jumpWeightsLevel1: [...JUMP_WEIGHTS_DEFAULT],
+  jumpWeightsLevel10: [...JUMP_WEIGHTS_DEFAULT],
   firstHitWeights: [...FIRST_HIT_WEIGHTS_DEFAULT],
   jumpWeights: [...JUMP_WEIGHTS_DEFAULT],
 
@@ -215,10 +280,52 @@ function updateHitWindowUI() {
   ui.hitWindowDisplay.textContent = String(state.hitWindowMs);
 }
 
+function syncInterpolatedSettings() {
+  state.bpm = interpolateRounded(state.bpmLevel1, state.bpmLevel10);
+  state.firstHitWeights = state.firstHitWeightsLevel1.map((weight, index) => {
+    return interpolateLinear(weight, state.firstHitWeightsLevel10[index]);
+  });
+  state.jumpWeights = state.jumpWeightsLevel1.map((weight, index) => {
+    return interpolateLinear(weight, state.jumpWeightsLevel10[index]);
+  });
+
+  ui.bpmValue.textContent = String(state.bpm);
+}
+
 function applyPersistedSettings() {
-  const storedBpm = loadStoredNumber(STORAGE_KEYS.bpm);
-  if (storedBpm !== null) {
-    state.bpm = clamp(Math.round(storedBpm), BPM_MIN, BPM_MAX);
+  const storedLevel = loadStoredNumber(STORAGE_KEYS.level);
+  if (storedLevel !== null) {
+    state.level = clamp(Math.round(storedLevel), LEVEL_MIN, LEVEL_MAX);
+  }
+
+  const storedBpmLevel1 = loadStoredNumber(STORAGE_KEYS.bpmLevel1);
+  if (storedBpmLevel1 !== null) {
+    state.bpmLevel1 = clamp(Math.round(storedBpmLevel1), BPM_MIN, BPM_MAX);
+  }
+
+  const storedBpmLevel10 = loadStoredNumber(STORAGE_KEYS.bpmLevel10);
+  if (storedBpmLevel10 !== null) {
+    state.bpmLevel10 = clamp(Math.round(storedBpmLevel10), BPM_MIN, BPM_MAX);
+  }
+
+  const storedFirstLevel1 = parseStoredArray(STORAGE_KEYS.weightFirstLevel1, FIRST_HIT_WEIGHTS_DEFAULT.length);
+  if (storedFirstLevel1) {
+    state.firstHitWeightsLevel1 = storedFirstLevel1.map((weight) => clamp(weight, 0, 10));
+  }
+
+  const storedFirstLevel10 = parseStoredArray(STORAGE_KEYS.weightFirstLevel10, FIRST_HIT_WEIGHTS_DEFAULT.length);
+  if (storedFirstLevel10) {
+    state.firstHitWeightsLevel10 = storedFirstLevel10.map((weight) => clamp(weight, 0, 10));
+  }
+
+  const storedJumpLevel1 = parseStoredArray(STORAGE_KEYS.weightJumpLevel1, JUMP_WEIGHTS_DEFAULT.length);
+  if (storedJumpLevel1) {
+    state.jumpWeightsLevel1 = storedJumpLevel1.map((weight) => clamp(weight, 0, 10));
+  }
+
+  const storedJumpLevel10 = parseStoredArray(STORAGE_KEYS.weightJumpLevel10, JUMP_WEIGHTS_DEFAULT.length);
+  if (storedJumpLevel10) {
+    state.jumpWeightsLevel10 = storedJumpLevel10.map((weight) => clamp(weight, 0, 10));
   }
 
   const storedLatency = loadStoredNumber(STORAGE_KEYS.latencyOffsetMs);
@@ -235,6 +342,8 @@ function applyPersistedSettings() {
   if (storedHitWindowMs !== null) {
     state.hitWindowMs = Math.round(storedHitWindowMs);
   }
+
+  syncInterpolatedSettings();
 }
 
 function getMeasureDur() {
@@ -862,7 +971,13 @@ function recordTap() {
 
 function clearLocalCache() {
   try {
-    window.localStorage.removeItem(STORAGE_KEYS.bpm);
+    window.localStorage.removeItem(STORAGE_KEYS.level);
+    window.localStorage.removeItem(STORAGE_KEYS.bpmLevel1);
+    window.localStorage.removeItem(STORAGE_KEYS.bpmLevel10);
+    window.localStorage.removeItem(STORAGE_KEYS.weightFirstLevel1);
+    window.localStorage.removeItem(STORAGE_KEYS.weightFirstLevel10);
+    window.localStorage.removeItem(STORAGE_KEYS.weightJumpLevel1);
+    window.localStorage.removeItem(STORAGE_KEYS.weightJumpLevel10);
     window.localStorage.removeItem(STORAGE_KEYS.latencyOffsetMs);
     window.localStorage.removeItem(STORAGE_KEYS.hitTolerance);
     window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
@@ -870,13 +985,34 @@ function clearLocalCache() {
     // Ignore storage errors
   }
 
-  state.bpm = BPM_DEFAULT;
+  state.level = LEVEL_DEFAULT;
+  state.bpmLevel1 = BPM_LEVEL1_DEFAULT;
+  state.bpmLevel10 = BPM_LEVEL10_DEFAULT;
+  state.firstHitWeightsLevel1 = [...FIRST_HIT_WEIGHTS_DEFAULT];
+  state.firstHitWeightsLevel10 = [...FIRST_HIT_WEIGHTS_DEFAULT];
+  state.jumpWeightsLevel1 = [...JUMP_WEIGHTS_DEFAULT];
+  state.jumpWeightsLevel10 = [...JUMP_WEIGHTS_DEFAULT];
+  syncInterpolatedSettings();
   state.latencyOffsetMs = INPUT_LATENCY_DEFAULT_MS;
   state.hitTolerance = HIT_TOLERANCE_DEFAULT;
   state.hitWindowMs = HIT_WINDOW_DEFAULT_MS;
 
-  ui.bpm.value = String(state.bpm);
-  ui.bpmValue.textContent = String(state.bpm);
+  ui.level.value = String(state.level);
+  ui.levelValue.textContent = String(state.level);
+  ui.bpmLevel1.value = String(state.bpmLevel1);
+  ui.bpmLevel1Value.textContent = String(state.bpmLevel1);
+  ui.bpmLevel10.value = String(state.bpmLevel10);
+  ui.bpmLevel10Value.textContent = String(state.bpmLevel10);
+
+  ui.endpointInputs.forEach(({ input, value, key, level, index }) => {
+    const source = key === 'first'
+      ? (level === 1 ? state.firstHitWeightsLevel1 : state.firstHitWeightsLevel10)
+      : (level === 1 ? state.jumpWeightsLevel1 : state.jumpWeightsLevel10);
+    const weight = source[index];
+    input.value = String(weight);
+    value.textContent = String(weight);
+  });
+
   ui.latency.value = String(state.latencyOffsetMs);
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
   ui.hitTolerance.value = String(state.hitTolerance);
@@ -885,16 +1021,39 @@ function clearLocalCache() {
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
 }
 
-function bindProbabilityControls() {
-  ui.probabilityInputs.forEach(({ input, value, group, index }) => {
+function bindEndpointControls() {
+  ui.endpointInputs.forEach(({ input, value, key, level, index }) => {
+    const source = key === 'first'
+      ? (level === 1 ? state.firstHitWeightsLevel1 : state.firstHitWeightsLevel10)
+      : (level === 1 ? state.jumpWeightsLevel1 : state.jumpWeightsLevel10);
+    input.value = String(source[index]);
+    value.textContent = String(source[index]);
+
     const sync = () => {
-      const weight = Number(input.value);
+      const weight = clamp(Number(input.value), 0, 10);
+      input.value = String(weight);
       value.textContent = String(weight);
-      if (group === 'first') {
-        state.firstHitWeights[index] = weight;
+      if (key === 'first') {
+        if (level === 1) {
+          state.firstHitWeightsLevel1[index] = weight;
+          saveArraySetting(STORAGE_KEYS.weightFirstLevel1, state.firstHitWeightsLevel1);
+        } else {
+          state.firstHitWeightsLevel10[index] = weight;
+          saveArraySetting(STORAGE_KEYS.weightFirstLevel10, state.firstHitWeightsLevel10);
+        }
       } else {
-        state.jumpWeights[index] = weight;
+        if (level === 1) {
+          state.jumpWeightsLevel1[index] = weight;
+          saveArraySetting(STORAGE_KEYS.weightJumpLevel1, state.jumpWeightsLevel1);
+        } else {
+          state.jumpWeightsLevel10[index] = weight;
+          saveArraySetting(STORAGE_KEYS.weightJumpLevel10, state.jumpWeightsLevel10);
+        }
       }
+
+      syncInterpolatedSettings();
+      updateHitWindowUI();
+      updateHitToleranceUI();
     };
 
     input.addEventListener('input', sync);
@@ -902,12 +1061,20 @@ function bindProbabilityControls() {
   });
 }
 
-ui.bpm.min = String(BPM_MIN);
-ui.bpm.max = String(BPM_MAX);
+ui.level.min = String(LEVEL_MIN);
+ui.level.max = String(LEVEL_MAX);
+ui.bpmLevel1.min = String(BPM_MIN);
+ui.bpmLevel1.max = String(BPM_MAX);
+ui.bpmLevel10.min = String(BPM_MIN);
+ui.bpmLevel10.max = String(BPM_MAX);
 applyPersistedSettings();
 
-ui.bpm.value = String(state.bpm);
-ui.bpmValue.textContent = String(state.bpm);
+ui.level.value = String(state.level);
+ui.levelValue.textContent = String(state.level);
+ui.bpmLevel1.value = String(state.bpmLevel1);
+ui.bpmLevel1Value.textContent = String(state.bpmLevel1);
+ui.bpmLevel10.value = String(state.bpmLevel10);
+ui.bpmLevel10Value.textContent = String(state.bpmLevel10);
 ui.latency.min = String(INPUT_LATENCY_MIN_MS);
 ui.latency.max = String(INPUT_LATENCY_MAX_MS);
 ui.latency.value = String(state.latencyOffsetMs);
@@ -916,10 +1083,29 @@ ui.hitTolerance.min = String(HIT_TOLERANCE_MIN);
 ui.hitTolerance.max = String(HIT_TOLERANCE_MAX);
 ui.hitTolerance.value = String(state.hitTolerance);
 
-ui.bpm.addEventListener('input', (e) => {
-  state.bpm = clamp(Number(e.target.value), BPM_MIN, BPM_MAX);
-  ui.bpmValue.textContent = String(state.bpm);
-  saveSetting(STORAGE_KEYS.bpm, state.bpm);
+ui.level.addEventListener('input', (e) => {
+  state.level = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
+  ui.levelValue.textContent = String(state.level);
+  saveSetting(STORAGE_KEYS.level, state.level);
+  syncInterpolatedSettings();
+  updateHitWindowUI();
+  updateHitToleranceUI();
+});
+
+ui.bpmLevel1.addEventListener('input', (e) => {
+  state.bpmLevel1 = clamp(Math.round(Number(e.target.value)), BPM_MIN, BPM_MAX);
+  ui.bpmLevel1Value.textContent = String(state.bpmLevel1);
+  saveSetting(STORAGE_KEYS.bpmLevel1, state.bpmLevel1);
+  syncInterpolatedSettings();
+  updateHitWindowUI();
+  updateHitToleranceUI();
+});
+
+ui.bpmLevel10.addEventListener('input', (e) => {
+  state.bpmLevel10 = clamp(Math.round(Number(e.target.value)), BPM_MIN, BPM_MAX);
+  ui.bpmLevel10Value.textContent = String(state.bpmLevel10);
+  saveSetting(STORAGE_KEYS.bpmLevel10, state.bpmLevel10);
+  syncInterpolatedSettings();
   updateHitWindowUI();
   updateHitToleranceUI();
 });
@@ -973,8 +1159,9 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
-bindProbabilityControls();
+bindEndpointControls();
 updateHitWindowUI();
 updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();
+console.info(`RhythmGame version ${APP_VERSION}`);

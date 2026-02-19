@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.21';
+const APP_VERSION = window.APP_VERSION || '1.0.22';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -492,12 +492,20 @@ function appendLog(message) {
   state.logEvents.push(message);
   ui.testLog.textContent = state.logEvents.length > 0
     ? state.logEvents.join('\n')
-    : 'Les changements de score seront affichés ici.';
+    : 'Les patterns, erreurs et timings seront affichés ici.';
 }
 
 function resetLog() {
   state.logEvents = [];
-  ui.testLog.textContent = 'Les changements de score seront affichés ici.';
+  ui.testLog.textContent = 'Les patterns, erreurs et timings seront affichés ici.';
+}
+
+function formatSeconds(seconds) {
+  return `${seconds.toFixed(3)}s`;
+}
+
+function formatPattern(pattern) {
+  return pattern.map((value) => (value === 1 ? 'x' : '.')).join('');
 }
 
 function formatErrorMs(ms) {
@@ -535,7 +543,6 @@ function setScore(nextScore, reason) {
   if (clampedScore === state.score) return;
   state.score = clampedScore;
   animateDisplayedScoreTo(state.score);
-  appendLog(`score=${state.score.toFixed(2)} | reason: ${reason}`);
 
   if (state.score <= 0) {
     stopEngine();
@@ -569,6 +576,10 @@ function prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure) {
     });
 
   });
+
+  appendLog(
+    `[TAP start] lvl=${state.liveLevel} rep=${state.liveRepetition}/${REPS_PER_PATTERN} bpm=${bpmForMeasure} start=${formatSeconds(measureStart)} pattern=${formatPattern(patternForMeasure)}`
+  );
 
   updateScoreUI();
 }
@@ -621,6 +632,9 @@ function markLiveMisses() {
     if (adjustedNow > hit.targetTime + missDelaySec) {
       hit.consumed = true;
       hit.missed = true;
+      appendLog(
+        `[MISS] note[${hit.idx + 1}] target=${formatSeconds(hit.targetTime)} now=${formatSeconds(adjustedNow)} delta=${formatErrorMs((adjustedNow - hit.targetTime) * 1000)}`
+      );
       consumeScorePoint(`missed note[${hit.idx + 1}]`);
     }
   });
@@ -688,6 +702,9 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
       stopScoreRecoveryAnimation();
       prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure);
     } else if (phase === PHASE.LISTEN) {
+      appendLog(
+        `[LISTEN start] lvl=${levelForMeasure} rep=${repetition}/${REPS_PER_PATTERN} bpm=${bpmForMeasure} start=${formatSeconds(measureStart)} pattern=${formatPattern(patternForMeasure)}`
+      );
       ui.tapZone.classList.add('listen-muted');
       ui.tapZone.classList.remove('listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
@@ -847,12 +864,15 @@ function scheduleLoop() {
             showResultScreen('Victory!', 'You finished level 10.');
             return;
           }
+          const previousLevel = state.level;
           state.level += 1;
           syncInterpolatedSettings({ updateBpmDisplay: false });
           state.pendingBpmDisplayUpdate = true;
+          appendLog(`[LEVEL UP] ${previousLevel} -> ${state.level} | nextBpm=${state.bpm}`);
         }
 
         state.pattern = generatePattern();
+        appendLog(`[NEW pattern] lvl=${state.level} pattern=${formatPattern(state.pattern)}`);
       }
     }
 
@@ -898,6 +918,9 @@ function startEngine() {
   state.nextMeasureTime = state.currentMeasureStart;
 
   resetLog();
+  appendLog(
+    `[GAME start] lvl=${state.level} bpm=${state.bpm} latency=${state.latencyOffsetMs}ms hitWindow=${state.hitWindowMs}ms tolerance=${Math.round(getHitToleranceMs(state.bpm))}ms`
+  );
 
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);
   state.scheduleTimer = setInterval(scheduleLoop, SCHED_INTERVAL_MS);
@@ -1074,8 +1097,14 @@ function recordTap() {
 
       if (Math.abs(errorSec) <= toleranceSec) {
         hit.correct = true;
+        appendLog(
+          `[OK] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
+        );
       } else {
         hit.correct = false;
+        appendLog(
+          `[ERR timing] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
+        );
         consumeScorePoint(`wrong timing note[${hit.idx + 1}] (${formatErrorMs(errorSec * 1000)})`);
       }
     } else {
@@ -1084,9 +1113,15 @@ function recordTap() {
 
       if (nearbyNote) {
         const errorMs = (adjustedTapTime - nearbyNote.noteTime) * 1000;
+        appendLog(
+          `[ERR timing] note[${nearbyNote.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(nearbyNote.noteTime)} delta=${formatErrorMs(errorMs)}`
+        );
         scoreReason = `wrong timing note[${nearbyNote.idx + 1}] (${formatErrorMs(errorMs)})`;
       } else {
         const closestIndex = getClosestSubdivIndex(adjustedTapTime);
+        appendLog(
+          `[ERR false] tap=${formatSeconds(adjustedTapTime)} closestSubdiv=${closestIndex + 1}`
+        );
         scoreReason = `false note entered[${closestIndex + 1}]`;
       }
       consumeScorePoint(scoreReason);

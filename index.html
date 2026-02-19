@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
-    <link rel="stylesheet" href="style.css?v=1.0.3" />
-    <script src="main.js?v=1.0.3" defer></script>
+    <link rel="stylesheet" href="style.css?v=1.0.4" />
+    <script src="main.js?v=1.0.4" defer></script>
   </head>
   <body>
     <main class="app">
@@ -53,27 +53,27 @@
           <legend>BPM by level endpoints</legend>
           <div class="dual-slider-row">
             <label>
-              BPM @ lvl 1: <span id="bpmLevel1Value">70</span>
-              <input id="bpmLevel1" type="range" min="40" max="120" step="1" value="70" />
+              BPM @ lvl 1: <span id="bpmLevel1Value">60</span>
+              <input id="bpmLevel1" type="range" min="40" max="120" step="1" value="60" />
             </label>
             <label>
-              BPM @ lvl 10: <span id="bpmLevel10Value">110</span>
-              <input id="bpmLevel10" type="range" min="40" max="120" step="1" value="110" />
+              BPM @ lvl 10: <span id="bpmLevel10Value">120</span>
+              <input id="bpmLevel10" type="range" min="40" max="120" step="1" value="120" />
             </label>
           </div>
-          <p class="computed-setting">Interpolated BPM: <span id="bpmValue">90</span></p>
+          <p class="computed-setting">Interpolated BPM: <span id="bpmValue">87</span></p>
         </fieldset>
 
         <fieldset>
           <legend>First hit index weights</legend>
           <div class="dual-slider-row">
             <label>
-              Index 2 @ lvl 1: <span id="weightFirst2Level1Value">5</span>
-              <input id="weightFirst2Level1" type="range" min="0" max="10" step="1" value="5" />
+              Index 2 @ lvl 1: <span id="weightFirst2Level1Value">0</span>
+              <input id="weightFirst2Level1" type="range" min="0" max="10" step="1" value="0" />
             </label>
             <label>
-              Index 2 @ lvl 10: <span id="weightFirst2Level10Value">5</span>
-              <input id="weightFirst2Level10" type="range" min="0" max="10" step="1" value="5" />
+              Index 2 @ lvl 10: <span id="weightFirst2Level10Value">10</span>
+              <input id="weightFirst2Level10" type="range" min="0" max="10" step="1" value="10" />
             </label>
           </div>
           <div class="dual-slider-row">
@@ -82,18 +82,18 @@
               <input id="weightFirst3Level1" type="range" min="0" max="10" step="1" value="10" />
             </label>
             <label>
-              Index 3 @ lvl 10: <span id="weightFirst3Level10Value">10</span>
-              <input id="weightFirst3Level10" type="range" min="0" max="10" step="1" value="10" />
+              Index 3 @ lvl 10: <span id="weightFirst3Level10Value">5</span>
+              <input id="weightFirst3Level10" type="range" min="0" max="10" step="1" value="5" />
             </label>
           </div>
           <div class="dual-slider-row">
             <label>
-              Index 4 @ lvl 1: <span id="weightFirst4Level1Value">5</span>
-              <input id="weightFirst4Level1" type="range" min="0" max="10" step="1" value="5" />
+              Index 4 @ lvl 1: <span id="weightFirst4Level1Value">0</span>
+              <input id="weightFirst4Level1" type="range" min="0" max="10" step="1" value="0" />
             </label>
             <label>
-              Index 4 @ lvl 10: <span id="weightFirst4Level10Value">5</span>
-              <input id="weightFirst4Level10" type="range" min="0" max="10" step="1" value="5" />
+              Index 4 @ lvl 10: <span id="weightFirst4Level10Value">10</span>
+              <input id="weightFirst4Level10" type="range" min="0" max="10" step="1" value="10" />
             </label>
           </div>
         </fieldset>
@@ -102,12 +102,12 @@
           <legend>Jump size weights</legend>
           <div class="dual-slider-row">
             <label>
-              Jump 1 @ lvl 1: <span id="weightJump1Level1Value">1</span>
-              <input id="weightJump1Level1" type="range" min="0" max="10" step="1" value="1" />
+              Jump 1 @ lvl 1: <span id="weightJump1Level1Value">0</span>
+              <input id="weightJump1Level1" type="range" min="0" max="10" step="1" value="0" />
             </label>
             <label>
-              Jump 1 @ lvl 10: <span id="weightJump1Level10Value">1</span>
-              <input id="weightJump1Level10" type="range" min="0" max="10" step="1" value="1" />
+              Jump 1 @ lvl 10: <span id="weightJump1Level10Value">2</span>
+              <input id="weightJump1Level10" type="range" min="0" max="10" step="1" value="2" />
             </label>
           </div>
           <div class="dual-slider-row">
@@ -116,14 +116,14 @@
               <input id="weightJump2Level1" type="range" min="0" max="10" step="1" value="10" />
             </label>
             <label>
-              Jump 2 @ lvl 10: <span id="weightJump2Level10Value">10</span>
-              <input id="weightJump2Level10" type="range" min="0" max="10" step="1" value="10" />
+              Jump 2 @ lvl 10: <span id="weightJump2Level10Value">6</span>
+              <input id="weightJump2Level10" type="range" min="0" max="10" step="1" value="6" />
             </label>
           </div>
           <div class="dual-slider-row">
             <label>
-              Jump 3 @ lvl 1: <span id="weightJump3Level1Value">10</span>
-              <input id="weightJump3Level1" type="range" min="0" max="10" step="1" value="10" />
+              Jump 3 @ lvl 1: <span id="weightJump3Level1Value">0</span>
+              <input id="weightJump3Level1" type="range" min="0" max="10" step="1" value="0" />
             </label>
             <label>
               Jump 3 @ lvl 10: <span id="weightJump3Level10Value">10</span>
@@ -132,8 +132,8 @@
           </div>
           <div class="dual-slider-row">
             <label>
-              Jump 4 @ lvl 1: <span id="weightJump4Level1Value">1</span>
-              <input id="weightJump4Level1" type="range" min="0" max="10" step="1" value="1" />
+              Jump 4 @ lvl 1: <span id="weightJump4Level1Value">10</span>
+              <input id="weightJump4Level1" type="range" min="0" max="10" step="1" value="10" />
             </label>
             <label>
               Jump 4 @ lvl 10: <span id="weightJump4Level10Value">1</span>
@@ -142,12 +142,12 @@
           </div>
           <div class="dual-slider-row">
             <label>
-              Jump 5 @ lvl 1: <span id="weightJump5Level1Value">1</span>
-              <input id="weightJump5Level1" type="range" min="0" max="10" step="1" value="1" />
+              Jump 5 @ lvl 1: <span id="weightJump5Level1Value">0</span>
+              <input id="weightJump5Level1" type="range" min="0" max="10" step="1" value="0" />
             </label>
             <label>
-              Jump 5 @ lvl 10: <span id="weightJump5Level10Value">1</span>
-              <input id="weightJump5Level10" type="range" min="0" max="10" step="1" value="1" />
+              Jump 5 @ lvl 10: <span id="weightJump5Level10Value">2</span>
+              <input id="weightJump5Level10" type="range" min="0" max="10" step="1" value="2" />
             </label>
           </div>
         </fieldset>

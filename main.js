@@ -131,7 +131,9 @@ const state = {
   expectedHits: [],
   expectedIndex: 0,
   score: MAX_SCORE,
+  displayedScore: MAX_SCORE,
   scoreRecoveryFrame: null,
+  scoreStepTimer: null,
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
@@ -354,7 +356,7 @@ function formatErrorMs(ms) {
 function consumeScorePoint() {
   if (state.score <= 0) return;
   state.score -= 1;
-  updateScoreUI();
+  animateDisplayedScoreTo(state.score);
   flashScore();
 }
 
@@ -383,6 +385,7 @@ function prepareTapPhase(measureStart, patternForMeasure) {
   });
 
   state.score = MAX_SCORE;
+  state.displayedScore = MAX_SCORE;
   updateScoreUI();
 }
 
@@ -489,15 +492,50 @@ function stopScoreRecoveryAnimation() {
   }
 }
 
+function stopScoreStepAnimation() {
+  if (state.scoreStepTimer !== null) {
+    clearInterval(state.scoreStepTimer);
+    state.scoreStepTimer = null;
+  }
+}
+
+function animateDisplayedScoreTo(targetScore) {
+  const clampedTarget = clamp(targetScore, 0, MAX_SCORE);
+  stopScoreStepAnimation();
+
+  if (Math.abs(state.displayedScore - clampedTarget) < 0.001) {
+    state.displayedScore = clampedTarget;
+    updateScoreUI();
+    return;
+  }
+
+  const stepSize = 0.2;
+  state.scoreStepTimer = setInterval(() => {
+    const distance = clampedTarget - state.displayedScore;
+    if (Math.abs(distance) <= stepSize) {
+      state.displayedScore = clampedTarget;
+      stopScoreStepAnimation();
+      updateScoreUI();
+      return;
+    }
+
+    state.displayedScore += Math.sign(distance) * stepSize;
+    updateScoreUI();
+  }, 50);
+}
+
 function startListenScoreRecovery(durationMs) {
   stopScoreRecoveryAnimation();
 
   const fromScore = clamp(state.score, 0, MAX_SCORE);
   if (fromScore >= MAX_SCORE || durationMs <= 0) {
     state.score = MAX_SCORE;
+    state.displayedScore = MAX_SCORE;
     updateScoreUI();
     return;
   }
+
+  stopScoreStepAnimation();
 
   const startTime = performance.now();
 
@@ -509,6 +547,7 @@ function startListenScoreRecovery(durationMs) {
 
     const progress = clamp((now - startTime) / durationMs, 0, 1);
     state.score = fromScore + ((MAX_SCORE - fromScore) * progress);
+    state.displayedScore = state.score;
     updateScoreUI();
 
     if (progress < 1) {
@@ -517,6 +556,7 @@ function startListenScoreRecovery(durationMs) {
     }
 
     state.score = MAX_SCORE;
+    state.displayedScore = MAX_SCORE;
     state.scoreRecoveryFrame = null;
     updateScoreUI();
   };
@@ -566,6 +606,7 @@ function startEngine() {
   state.expectedHits = [];
   state.tapPattern = null;
   state.score = 0;
+  state.displayedScore = 0;
   const countInStart = state.audioCtx.currentTime + 0.08;
   const beatDur = 60 / state.bpm;
   for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
@@ -592,6 +633,7 @@ function stopEngine() {
   }
 
   stopScoreRecoveryAnimation();
+  stopScoreStepAnimation();
   state.expectedHits = [];
   state.tapPattern = null;
   state.livePhase = PHASE.LISTEN;
@@ -612,7 +654,7 @@ function toggleEngine() {
 
 
 function updateScoreUI() {
-  const ratio = clamp(state.score / MAX_SCORE, 0, 1);
+  const ratio = clamp(state.displayedScore / MAX_SCORE, 0, 1);
   const hue = Math.round(ratio * 120);
   ui.tapZone.style.setProperty('--fill-height', `${Math.round(ratio * 100)}%`);
   ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);

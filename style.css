@@ -202,6 +202,9 @@ summary {
 
 
 .tap-zone span {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   transition: opacity 120ms ease;
 }
 
@@ -210,9 +213,6 @@ summary {
   --tap-sat-transition-ms: 0ms;
 }
 
-.tap-zone.listen-muted span {
-  opacity: 0;
-}
 
 .tap-zone.listen-release {
   --tap-saturation: 1;

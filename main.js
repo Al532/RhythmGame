@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 const LEVEL_DEFAULT = 5;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -144,6 +144,7 @@ const ui = {
   testLog: document.getElementById('testLog'),
   startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
+  tapZoneLabel: document.getElementById('tapZoneLabel'),
   endpointInputs: [
     { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
     { input: document.getElementById('weightFirst2Level10'), value: document.getElementById('weightFirst2Level10Value'), key: 'first', level: 10, index: 0 },
@@ -767,6 +768,9 @@ function startEngine() {
   for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
     playHiHat(countInStart + (beat * beatDur));
   }
+  [11, 15].forEach((idx) => {
+    playHiHat(countInStart + ((idx / 4) * beatDur));
+  });
 
   state.currentMeasureStart = countInStart + (START_COUNTIN_BEATS * beatDur);
   state.nextMeasureTime = state.currentMeasureStart;
@@ -817,9 +821,17 @@ function updateScoreUI() {
   ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);
 }
 
+function getTapZoneLabel() {
+  if (!state.isRunning) return 'READY?';
+  if (state.livePhase === PHASE.LISTEN) return 'LISTEN...';
+  if (state.livePhase === PHASE.TAP) return 'TAP!';
+  return 'READY?';
+}
+
 function updateStaticUI() {
   const isTapActive = (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating);
   ui.tapZone.classList.toggle('active', isTapActive);
+  ui.tapZoneLabel.textContent = getTapZoneLabel();
   document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
 }
 

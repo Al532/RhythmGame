@@ -178,7 +178,10 @@ function getSubdivMs() {
 }
 
 function getHitToleranceMs() {
-  return (state.hitTolerance / 100) * state.hitWindowMs;
+  const beatMs = 60000 / state.bpm;
+  const minToleranceMs = beatMs / 8;
+  const maxToleranceMs = beatMs / 4;
+  return minToleranceMs + ((state.hitTolerance / 100) * (maxToleranceMs - minToleranceMs));
 }
 
 function getMinHitWindowMs() {
@@ -370,7 +373,8 @@ function prepareTapPhase(measureStart, patternForMeasure) {
     state.expectedHits.push({
       idx,
       targetTime,
-      hit: false,
+      validated: false,
+      correct: false,
       missed: false
     });
 
@@ -387,7 +391,7 @@ function markLiveMisses() {
   const missDelaySec = getSubdivDur();
 
   state.expectedHits.forEach((hit) => {
-    if (hit.hit || hit.missed) return;
+    if (hit.validated || hit.missed) return;
     if (adjustedNow > hit.targetTime + missDelaySec) {
       hit.missed = true;
       consumeScorePoint();
@@ -539,7 +543,7 @@ function getClosestExpectedHitWithinWindow(adjustedTapTime) {
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const hit of state.expectedHits) {
-    if (hit.hit || hit.missed) continue;
+    if (hit.validated || hit.missed) continue;
     const distance = Math.abs(adjustedTapTime - hit.targetTime);
     if (distance > hitWindowSec) continue;
 
@@ -658,7 +662,17 @@ function recordTap() {
     const hit = getClosestExpectedHitWithinWindow(adjustedTapTime);
 
     if (hit) {
-      hit.hit = true;
+      hit.validated = true;
+      const toleranceSec = getHitToleranceMs() / 1000;
+      const errorSec = adjustedTapTime - hit.targetTime;
+
+      if (Math.abs(errorSec) <= toleranceSec) {
+        hit.correct = true;
+      } else {
+        hit.correct = false;
+        consumeScorePoint();
+        appendLog(`note[${hit.idx + 1}] wrong timing (${formatErrorMs(errorSec * 1000)})`);
+      }
     } else {
       consumeScorePoint();
       const nearbyNote = getOldestPatternNoteWithinSubdiv(adjustedTapTime);

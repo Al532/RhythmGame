@@ -141,7 +141,8 @@ const state = {
   calibrationDelays: [],
 
   logEvents: [],
-  tapMeasureStart: 0
+  tapMeasureStart: 0,
+  tapPattern: null
 };
 
 function weightedChoice(values, weights) {
@@ -362,6 +363,7 @@ function consumeScorePoint() {
 function prepareTapPhase(measureStart, patternForMeasure) {
   state.expectedHits = [];
   state.tapMeasureStart = measureStart;
+  state.tapPattern = [...patternForMeasure];
   const subdivDur = getSubdivDur();
 
   if (state.logEvents.length > 0) appendLog('______');
@@ -478,6 +480,7 @@ function startEngine() {
   state.liveRepetition = 1;
   state.livePhase = PHASE.LISTEN;
   state.expectedHits = [];
+  state.tapPattern = null;
   state.score = MAX_SCORE;
   const countInStart = state.audioCtx.currentTime + 0.08;
   const beatDur = 60 / state.bpm;
@@ -505,6 +508,7 @@ function stopEngine() {
   }
 
   state.expectedHits = [];
+  state.tapPattern = null;
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active');
@@ -558,9 +562,15 @@ function getClosestExpectedHitWithinWindow(adjustedTapTime) {
 
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
   const windowSec = getSubdivDur();
+  const pattern = state.tapPattern ?? state.pattern;
+  const expectedHitByIdx = new Map(state.expectedHits.map((hit) => [hit.idx, hit]));
 
-  for (let idx = 0; idx < state.pattern.length; idx += 1) {
-    if (state.pattern[idx] !== 1 || idx === 15) continue;
+  for (let idx = 0; idx < pattern.length; idx += 1) {
+    if (pattern[idx] !== 1 || idx === 15) continue;
+
+    const expectedHit = expectedHitByIdx.get(idx);
+    if (expectedHit && (expectedHit.validated || expectedHit.missed)) continue;
+
     const noteTime = state.tapMeasureStart + (idx * getSubdivDur());
     const distance = Math.abs(adjustedTapTime - noteTime);
     if (distance <= windowSec) {

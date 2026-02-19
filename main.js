@@ -17,10 +17,10 @@ const SCHED_LOOKAHEAD_MS = 120;
 const SCHED_INTERVAL_MS = 25;
 const MAX_SCORE = 5;
 
-const FIRST_HIT_INDICES = [0, 1, 2, 3];
-const FIRST_HIT_WEIGHTS_DEFAULT = [4, 1.5, 3, 1.5];
+const FIRST_HIT_INDICES = [1, 2, 3];
+const FIRST_HIT_WEIGHTS_DEFAULT = [5, 10, 5];
 const JUMP_VALUES = [1, 2, 3, 4, 5];
-const JUMP_WEIGHTS_DEFAULT = [1 / 3, 4, 4, 1 / 3, 1 / 3];
+const JUMP_WEIGHTS_DEFAULT = [1, 10, 10, 1, 1];
 
 const DRUM_GAIN = {
   snare: 0.42,
@@ -84,18 +84,16 @@ const ui = {
   latency: document.getElementById('latency'),
   latencyValue: document.getElementById('latencyValue'),
   hitTolerance: document.getElementById('hitTolerance'),
-  hitToleranceValue: document.getElementById('hitToleranceValue'),
-  hitToleranceMsValue: document.getElementById('hitToleranceMsValue'),
+  hitToleranceDisplay: document.getElementById('hitToleranceDisplay'),
   calibration: document.getElementById('calibration'),
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
   startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
   probabilityInputs: [
-    { input: document.getElementById('weightFirst0'), value: document.getElementById('weightFirst0Value'), group: 'first', index: 0 },
-    { input: document.getElementById('weightFirst1'), value: document.getElementById('weightFirst1Value'), group: 'first', index: 1 },
-    { input: document.getElementById('weightFirst2'), value: document.getElementById('weightFirst2Value'), group: 'first', index: 2 },
-    { input: document.getElementById('weightFirst3'), value: document.getElementById('weightFirst3Value'), group: 'first', index: 3 },
+    { input: document.getElementById('weightFirst2'), value: document.getElementById('weightFirst2Value'), group: 'first', index: 0 },
+    { input: document.getElementById('weightFirst3'), value: document.getElementById('weightFirst3Value'), group: 'first', index: 1 },
+    { input: document.getElementById('weightFirst4'), value: document.getElementById('weightFirst4Value'), group: 'first', index: 2 },
     { input: document.getElementById('weightJump1'), value: document.getElementById('weightJump1Value'), group: 'jump', index: 0 },
     { input: document.getElementById('weightJump2'), value: document.getElementById('weightJump2Value'), group: 'jump', index: 1 },
     { input: document.getElementById('weightJump3'), value: document.getElementById('weightJump3Value'), group: 'jump', index: 2 },
@@ -188,8 +186,7 @@ function formatPatternForLog(pattern) {
 
 function updateHitToleranceUI() {
   const toleranceMs = Math.round(getHitToleranceMs());
-  ui.hitToleranceValue.textContent = String(state.hitTolerance);
-  ui.hitToleranceMsValue.textContent = String(toleranceMs);
+  ui.hitToleranceDisplay.textContent = `${state.hitTolerance} (${toleranceMs} ms)`;
 }
 
 function applyPersistedSettings() {
@@ -399,7 +396,9 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     if (idx % 4 === 0) playKick(eventTime);
   }
 
-  playCymbalCrescendo(measureStart + (14 * subdivDur), measureStart + (16 * subdivDur));
+  if (phase === PHASE.LISTEN) {
+    playCymbalCrescendo(measureStart + (14 * subdivDur), measureStart + (16 * subdivDur));
+  }
 }
 
 function flashScore() {

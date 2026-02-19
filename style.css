@@ -74,9 +74,6 @@ button {
   background: color-mix(in srgb, var(--accent), transparent 82%);
 }
 
-#startStop:hover {
-  background: color-mix(in srgb, var(--accent), transparent 70%);
-}
 
 #calibration {
   border: 1px solid color-mix(in srgb, var(--warn), transparent 50%);
@@ -86,6 +83,20 @@ button {
 #clearCache {
   border: 1px solid color-mix(in srgb, var(--danger), transparent 50%);
   background: color-mix(in srgb, var(--danger), transparent 82%);
+}
+
+
+button,
+.tap-zone {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus,
+button:focus-visible,
+.tap-zone:focus,
+.tap-zone:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 label {

@@ -194,6 +194,8 @@ const state = {
   screen: 'start',
   isCalibrating: false,
   level: LEVEL_DEFAULT,
+  liveLevel: LEVEL_DEFAULT,
+  liveBpm: interpolateRounded(BPM_LEVEL1_DEFAULT, BPM_LEVEL10_DEFAULT, getInterpolationFactor(LEVEL_DEFAULT)),
   bpmLevel1: BPM_LEVEL1_DEFAULT,
   bpmLevel10: BPM_LEVEL10_DEFAULT,
   bpm: interpolateRounded(BPM_LEVEL1_DEFAULT, BPM_LEVEL10_DEFAULT, getInterpolationFactor(LEVEL_DEFAULT)),
@@ -270,23 +272,23 @@ function generatePattern() {
   return p;
 }
 
-function getSubdivDur() {
-  return (60 / state.bpm) / 4;
+function getSubdivDur(bpm = state.bpm) {
+  return (60 / bpm) / 4;
 }
 
-function getSubdivMs() {
-  return getSubdivDur() * 1000;
+function getSubdivMs(bpm = state.bpm) {
+  return getSubdivDur(bpm) * 1000;
 }
 
-function getHitToleranceMs() {
-  const beatMs = 60000 / state.bpm;
+function getHitToleranceMs(bpm = state.bpm) {
+  const beatMs = 60000 / bpm;
   const minToleranceMs = beatMs / 8;
   const maxToleranceMs = beatMs / 4;
   return minToleranceMs + ((state.hitTolerance / 100) * (maxToleranceMs - minToleranceMs));
 }
 
-function getMinHitWindowMs() {
-  return Math.round(getSubdivMs());
+function getMinHitWindowMs(bpm = state.bpm) {
+  return Math.round(getSubdivMs(bpm));
 }
 
 function updateHitToleranceUI() {
@@ -659,12 +661,14 @@ function scheduleListenSaturationRelease(measureStart) {
   }, releaseEndMs);
 }
 
-function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
-  const subdivDur = getSubdivDur();
+function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, levelForMeasure, bpmForMeasure) {
+  const subdivDur = getSubdivDur(bpmForMeasure);
   const phaseStartTime = phase === PHASE.TAP ? measureStart - subdivDur : measureStart;
 
   setTimeout(() => {
     state.isIntroduction = false;
+    state.liveLevel = levelForMeasure;
+    state.liveBpm = bpmForMeasure;
     state.livePhase = phase;
     state.liveRepetition = repetition;
     if (state.pendingBpmDisplayUpdate && phase === PHASE.LISTEN && repetition === 1) {
@@ -819,7 +823,9 @@ function scheduleLoop() {
     state.currentMeasureStart = state.nextMeasureTime;
 
     const patternForMeasure = [...state.pattern];
-    scheduleMeasure(state.nextMeasureTime, state.phase, state.repetition, patternForMeasure);
+    const levelForMeasure = state.level;
+    const bpmForMeasure = state.bpm;
+    scheduleMeasure(state.nextMeasureTime, state.phase, state.repetition, patternForMeasure, levelForMeasure, bpmForMeasure);
 
     if (state.phase === PHASE.LISTEN) {
       state.phase = PHASE.TAP;
@@ -857,7 +863,9 @@ function startEngine() {
 
   state.isRunning = true;
   state.level = state.startLevel;
+  state.liveLevel = state.startLevel;
   syncInterpolatedSettings();
+  state.liveBpm = state.bpm;
   state.patternNumber = 1;
   state.completedPatternsInLevel = 0;
   state.pattern = generatePattern();
@@ -935,12 +943,12 @@ function updateStaticUI() {
   const isTapActive = (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating);
   ui.tapZone.classList.toggle('active', isTapActive);
   ui.tapZoneLabel.textContent = getTapZoneLabel();
-  ui.gameLevelValue.textContent = String(state.level);
+  ui.gameLevelValue.textContent = String(state.isRunning ? state.liveLevel : state.level);
   document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
 }
 
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
-  const windowSec = getSubdivDur();
+  const windowSec = getSubdivDur(state.liveBpm);
   const pattern = state.tapPattern ?? state.pattern;
   const expectedHitByIdx = new Map(state.expectedHits.map((hit) => [hit.idx, hit]));
 
@@ -950,7 +958,7 @@ function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
     const expectedHit = expectedHitByIdx.get(idx);
     if (expectedHit && isHitJudged(expectedHit)) continue;
 
-    const noteTime = state.tapMeasureStart + (idx * getSubdivDur());
+    const noteTime = state.tapMeasureStart + (idx * getSubdivDur(state.liveBpm));
     const distance = Math.abs(adjustedTapTime - noteTime);
     if (distance <= windowSec) {
       return { idx, noteTime };
@@ -961,7 +969,7 @@ function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
 }
 
 function getClosestSubdivIndex(adjustedTapTime) {
-  const subdivDur = getSubdivDur();
+  const subdivDur = getSubdivDur(state.liveBpm);
   if (subdivDur <= 0) return 0;
   const relative = (adjustedTapTime - state.tapMeasureStart) / subdivDur;
   const rounded = Math.round(relative);
@@ -1056,7 +1064,7 @@ function recordTap() {
       hit.consumed = true;
       hit.validated = true;
       advanceExpectedIndex();
-      const toleranceSec = getHitToleranceMs() / 1000;
+      const toleranceSec = getHitToleranceMs(state.liveBpm) / 1000;
       const errorSec = adjustedTapTime - hit.targetTime;
 
       if (Math.abs(errorSec) <= toleranceSec) {

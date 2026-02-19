@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.18';
+const APP_VERSION = window.APP_VERSION || '1.0.21';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -240,6 +240,7 @@ const state = {
 
   logEvents: [],
   tapMeasureStart: 0,
+  tapMeasureBpm: interpolateRounded(BPM_LEVEL1_DEFAULT, BPM_LEVEL10_DEFAULT, getInterpolationFactor(LEVEL_DEFAULT)),
   tapPattern: null,
   isIntroduction: false,
   completedPatternsInLevel: 0,
@@ -547,12 +548,13 @@ function consumeScorePoint(reason) {
   setScore(state.score - 1, reason);
 }
 
-function prepareTapPhase(measureStart, patternForMeasure) {
+function prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure) {
   state.expectedHits = [];
   state.expectedIndex = 0;
   state.tapMeasureStart = measureStart;
+  state.tapMeasureBpm = bpmForMeasure;
   state.tapPattern = [...patternForMeasure];
-  const subdivDur = getSubdivDur();
+  const subdivDur = getSubdivDur(bpmForMeasure);
 
   patternForMeasure.forEach((value, idx) => {
     if (value !== 1 || idx === 15) return;
@@ -684,7 +686,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
       ui.tapZone.classList.remove('listen-muted', 'listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       stopScoreRecoveryAnimation();
-      prepareTapPhase(measureStart, patternForMeasure);
+      prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure);
     } else if (phase === PHASE.LISTEN) {
       ui.tapZone.classList.add('listen-muted');
       ui.tapZone.classList.remove('listen-release');
@@ -876,6 +878,7 @@ function startEngine() {
   state.livePhase = PHASE.LISTEN;
   state.expectedHits = [];
   state.tapPattern = null;
+  state.tapMeasureBpm = state.liveBpm;
   state.score = state.maxScore;
   state.displayedScore = state.maxScore;
   state.displayedScoreTarget = state.maxScore;
@@ -917,6 +920,7 @@ function stopEngine() {
   clearListenSaturationTimers();
   state.expectedHits = [];
   state.tapPattern = null;
+  state.tapMeasureBpm = state.liveBpm;
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
@@ -949,7 +953,7 @@ function updateStaticUI() {
 }
 
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
-  const windowSec = getSubdivDur(state.liveBpm);
+  const windowSec = getSubdivDur(state.tapMeasureBpm);
   const pattern = state.tapPattern ?? state.pattern;
   const expectedHitByIdx = new Map(state.expectedHits.map((hit) => [hit.idx, hit]));
 
@@ -959,7 +963,7 @@ function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
     const expectedHit = expectedHitByIdx.get(idx);
     if (expectedHit && isHitJudged(expectedHit)) continue;
 
-    const noteTime = state.tapMeasureStart + (idx * getSubdivDur(state.liveBpm));
+    const noteTime = state.tapMeasureStart + (idx * getSubdivDur(state.tapMeasureBpm));
     const distance = Math.abs(adjustedTapTime - noteTime);
     if (distance <= windowSec) {
       return { idx, noteTime };
@@ -970,7 +974,7 @@ function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
 }
 
 function getClosestSubdivIndex(adjustedTapTime) {
-  const subdivDur = getSubdivDur(state.liveBpm);
+  const subdivDur = getSubdivDur(state.tapMeasureBpm);
   if (subdivDur <= 0) return 0;
   const relative = (adjustedTapTime - state.tapMeasureStart) / subdivDur;
   const rounded = Math.round(relative);

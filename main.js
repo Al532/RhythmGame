@@ -25,14 +25,18 @@ const JUMP_WEIGHTS_DEFAULT = [1 / 3, 4, 4, 1 / 3, 1 / 3];
 const DRUM_GAIN = {
   snare: 0.42,
   kick: 0.6,
-  hihat: 0.22
+  hihat: 0.22,
+  cymbal: 0.18
 };
 
 const DRUM_TUNING = {
   snare: { decay: 0.1, bpFreq: 2200, bpQ: 1.5 },
   kick: { startFreq: 120, endFreq: 50, decay: 0.15 },
-  hihat: { decay: 0.03, hpFreq: 5500 }
+  hihat: { decay: 0.03, hpFreq: 5500 },
+  cymbal: { hpFreq: 4200 }
 };
+
+const START_COUNTIN_BEATS = 4;
 
 const PHASE = {
   LISTEN: 'LISTEN',
@@ -284,6 +288,25 @@ function playHiHat(time) {
   src.stop(time + DRUM_TUNING.hihat.decay + 0.01);
 }
 
+function playCymbalCrescendo(startTime, endTime) {
+  const ctx = state.audioCtx;
+  const src = ctx.createBufferSource();
+  src.buffer = state.noiseBuffer;
+
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.setValueAtTime(DRUM_TUNING.cymbal.hpFreq, startTime);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.exponentialRampToValueAtTime(DRUM_GAIN.cymbal, endTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, endTime + 0.04);
+
+  src.connect(hp).connect(gain).connect(ctx.destination);
+  src.start(startTime);
+  src.stop(endTime + 0.05);
+}
+
 
 function appendLog(message) {
   state.logEvents.push(message);
@@ -354,6 +377,7 @@ function markLiveMisses() {
 
 function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
   const subdivDur = getSubdivDur();
+  const phaseStartTime = phase === PHASE.TAP ? measureStart - subdivDur : measureStart;
 
   setTimeout(() => {
     state.livePhase = phase;
@@ -363,7 +387,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     if (phase === PHASE.TAP) {
       prepareTapPhase(measureStart, patternForMeasure);
     }
-  }, Math.max(0, (measureStart - state.audioCtx.currentTime) * 1000));
+  }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 
   for (let idx = 0; idx < PATTERN_LENGTH; idx += 1) {
     const eventTime = measureStart + (idx * subdivDur);
@@ -372,9 +396,10 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
       playSnare(eventTime);
     }
 
-    if (idx === 0 || idx === 8) playKick(eventTime);
-    if (idx === 4 || idx === 12) playHiHat(eventTime);
+    if (idx % 4 === 0) playKick(eventTime);
   }
+
+  playCymbalCrescendo(measureStart + (14 * subdivDur), measureStart + (16 * subdivDur));
 }
 
 function flashScore() {
@@ -426,7 +451,13 @@ function startEngine() {
   state.livePhase = PHASE.LISTEN;
   state.expectedHits = [];
   state.score = MAX_SCORE;
-  state.currentMeasureStart = state.audioCtx.currentTime + 0.08;
+  const countInStart = state.audioCtx.currentTime + 0.08;
+  const beatDur = 60 / state.bpm;
+  for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
+    playHiHat(countInStart + (beat * beatDur));
+  }
+
+  state.currentMeasureStart = countInStart + (START_COUNTIN_BEATS * beatDur);
   state.nextMeasureTime = state.currentMeasureStart;
 
   resetLog();
@@ -480,11 +511,14 @@ function updateStaticUI() {
 
 function getOldestExpectedHitWithinTolerance(adjustedTapTime) {
   const toleranceSec = getHitToleranceMs() / 1000;
+  const anticipWindowSec = getSubdivDur();
 
   for (const hit of state.expectedHits) {
     if (hit.hit || hit.missed) continue;
-    const distance = Math.abs(adjustedTapTime - hit.targetTime);
-    if (distance <= toleranceSec) {
+    const earlyAllowance = hit.idx === 0 ? anticipWindowSec : toleranceSec;
+    const earlyDelta = hit.targetTime - adjustedTapTime;
+    const lateDelta = adjustedTapTime - hit.targetTime;
+    if (earlyDelta <= earlyAllowance && lateDelta <= toleranceSec) {
       return hit;
     }
   }

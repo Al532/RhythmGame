@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.10';
+const APP_VERSION = '1.0.11';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -556,8 +556,6 @@ function prepareTapPhase(measureStart, patternForMeasure) {
 
   });
 
-  state.score = MAX_SCORE;
-  state.displayedScore = MAX_SCORE;
   updateScoreUI();
 }
 

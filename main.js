@@ -40,6 +40,36 @@ const PHASE = {
   CALIBRATION: 'CALIBRATION'
 };
 
+
+const STORAGE_KEYS = {
+  bpm: 'rhythmTrainer.bpm',
+  latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
+  hitTolerance: 'rhythmTrainer.hitTolerance'
+};
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function saveSetting(key, value) {
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch (_error) {
+    // Ignore storage errors (private mode, quota, etc.)
+  }
+}
+
+function loadStoredNumber(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 const ui = {
   phaseLabel: document.getElementById('phaseLabel'),
   patternCount: document.getElementById('patternCount'),
@@ -158,6 +188,23 @@ function updateHitToleranceUI() {
   ui.hitToleranceMsValue.textContent = String(toleranceMs);
 }
 
+function applyPersistedSettings() {
+  const storedBpm = loadStoredNumber(STORAGE_KEYS.bpm);
+  if (storedBpm !== null) {
+    state.bpm = clamp(Math.round(storedBpm), BPM_MIN, BPM_MAX);
+  }
+
+  const storedLatency = loadStoredNumber(STORAGE_KEYS.latencyOffsetMs);
+  if (storedLatency !== null) {
+    state.latencyOffsetMs = clamp(Math.round(storedLatency), INPUT_LATENCY_MIN_MS, INPUT_LATENCY_MAX_MS);
+  }
+
+  const storedTolerance = loadStoredNumber(STORAGE_KEYS.hitTolerance);
+  if (storedTolerance !== null) {
+    state.hitTolerance = clamp(Math.round(storedTolerance), HIT_TOLERANCE_MIN, HIT_TOLERANCE_MAX);
+  }
+}
+
 function getMeasureDur() {
   return getSubdivDur() * PATTERN_LENGTH;
 }
@@ -264,15 +311,15 @@ function consumeScorePoint() {
   flashScore();
 }
 
-function prepareTapPhase(measureStart) {
+function prepareTapPhase(measureStart, patternForMeasure) {
   state.expectedHits = [];
   state.tapMeasureStart = measureStart;
   const subdivDur = getSubdivDur();
 
   if (state.logEvents.length > 0) appendLog('______');
-  appendLog(formatPatternForLog(state.pattern));
+  appendLog(formatPatternForLog(patternForMeasure));
 
-  state.pattern.forEach((value, idx) => {
+  patternForMeasure.forEach((value, idx) => {
     if (value !== 1 || idx === 15) return;
     const targetTime = measureStart + (idx * subdivDur);
     state.expectedHits.push({
@@ -305,7 +352,7 @@ function markLiveMisses() {
 
 }
 
-function scheduleMeasure(measureStart, phase, repetition) {
+function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
   const subdivDur = getSubdivDur();
 
   setTimeout(() => {
@@ -314,14 +361,14 @@ function scheduleMeasure(measureStart, phase, repetition) {
     updateStaticUI();
 
     if (phase === PHASE.TAP) {
-      prepareTapPhase(measureStart);
+      prepareTapPhase(measureStart, patternForMeasure);
     }
   }, Math.max(0, (measureStart - state.audioCtx.currentTime) * 1000));
 
   for (let idx = 0; idx < PATTERN_LENGTH; idx += 1) {
     const eventTime = measureStart + (idx * subdivDur);
 
-    if (state.pattern[idx] === 1) {
+    if (patternForMeasure[idx] === 1) {
       playSnare(eventTime);
     }
 
@@ -347,7 +394,8 @@ function scheduleLoop() {
   while (state.nextMeasureTime < now + (SCHED_LOOKAHEAD_MS / 1000)) {
     state.currentMeasureStart = state.nextMeasureTime;
 
-    scheduleMeasure(state.nextMeasureTime, state.phase, state.repetition);
+    const patternForMeasure = [...state.pattern];
+    scheduleMeasure(state.nextMeasureTime, state.phase, state.repetition, patternForMeasure);
 
     if (state.phase === PHASE.LISTEN) {
       state.phase = PHASE.TAP;
@@ -502,6 +550,7 @@ function applyCalibrationResult() {
   state.latencyOffsetMs = clampedLatency;
   ui.latency.value = String(clampedLatency);
   ui.latencyValue.textContent = String(clampedLatency);
+  saveSetting(STORAGE_KEYS.latencyOffsetMs, state.latencyOffsetMs);
   ui.calibrationResult.textContent = `Calibration terminée: délai moyen ${avgDelayMs.toFixed(1)} ms (${state.calibrationDelays.length}/${CALIBRATION_BEATS} temps).`;
 }
 
@@ -590,30 +639,35 @@ function bindProbabilityControls() {
 
 ui.bpm.min = String(BPM_MIN);
 ui.bpm.max = String(BPM_MAX);
-ui.bpm.value = String(BPM_DEFAULT);
-ui.bpmValue.textContent = String(BPM_DEFAULT);
-ui.latency.min = String(0);
+applyPersistedSettings();
+
+ui.bpm.value = String(state.bpm);
+ui.bpmValue.textContent = String(state.bpm);
+ui.latency.min = String(INPUT_LATENCY_MIN_MS);
 ui.latency.max = String(INPUT_LATENCY_MAX_MS);
-ui.latency.value = String(INPUT_LATENCY_DEFAULT_MS);
-ui.latencyValue.textContent = String(INPUT_LATENCY_DEFAULT_MS);
+ui.latency.value = String(state.latencyOffsetMs);
+ui.latencyValue.textContent = String(state.latencyOffsetMs);
 ui.hitTolerance.min = String(HIT_TOLERANCE_MIN);
 ui.hitTolerance.max = String(HIT_TOLERANCE_MAX);
-ui.hitTolerance.value = String(HIT_TOLERANCE_DEFAULT);
+ui.hitTolerance.value = String(state.hitTolerance);
 
 ui.bpm.addEventListener('input', (e) => {
-  state.bpm = Number(e.target.value);
+  state.bpm = clamp(Number(e.target.value), BPM_MIN, BPM_MAX);
   ui.bpmValue.textContent = String(state.bpm);
+  saveSetting(STORAGE_KEYS.bpm, state.bpm);
   updateHitToleranceUI();
 });
 
 ui.latency.addEventListener('input', (e) => {
-  state.latencyOffsetMs = Math.max(0, Number(e.target.value));
+  state.latencyOffsetMs = clamp(Number(e.target.value), INPUT_LATENCY_MIN_MS, INPUT_LATENCY_MAX_MS);
   ui.latency.value = String(state.latencyOffsetMs);
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
+  saveSetting(STORAGE_KEYS.latencyOffsetMs, state.latencyOffsetMs);
 });
 
 ui.hitTolerance.addEventListener('input', (e) => {
-  state.hitTolerance = Number(e.target.value);
+  state.hitTolerance = clamp(Number(e.target.value), HIT_TOLERANCE_MIN, HIT_TOLERANCE_MAX);
+  saveSetting(STORAGE_KEYS.hitTolerance, state.hitTolerance);
   updateHitToleranceUI();
 });
 

@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.6';
+const APP_VERSION = '1.0.7';
 const LEVEL_DEFAULT = 5;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -626,6 +626,14 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
 
     if (patternForMeasure[idx] === 1) {
       playSnare(eventTime);
+
+      if (phase === PHASE.LISTEN) {
+        const feedbackDelayMs = Math.max(0, (eventTime - state.audioCtx.currentTime) * 1000);
+        setTimeout(() => {
+          if (!state.isRunning || state.livePhase !== PHASE.LISTEN) return;
+          triggerTapZoneFeedback({ vibrate: true });
+        }, feedbackDelayMs);
+      }
     }
 
     if (idx % 4 === 0) playKick(eventTime);
@@ -641,6 +649,20 @@ function flashScore() {
   // Force restart of the short loss animation on consecutive misses.
   void ui.tapZone.offsetWidth;
   ui.tapZone.classList.add('loss-flash');
+}
+
+function triggerShortVibration(durationMs = 10) {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  navigator.vibrate(Math.max(1, Math.round(durationMs)));
+}
+
+function triggerTapZoneFeedback({ vibrate = false } = {}) {
+  ui.tapZone.classList.add('pressed');
+  setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
+
+  if (vibrate) {
+    triggerShortVibration(10);
+  }
 }
 
 function stopScoreRecoveryAnimation() {
@@ -985,8 +1007,7 @@ function recordTap() {
     return;
   }
 
-  ui.tapZone.classList.add('pressed');
-  setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
+  triggerTapZoneFeedback({ vibrate: true });
 
 }
 

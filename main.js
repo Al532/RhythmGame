@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.12';
+const APP_VERSION = '1.0.13';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -157,6 +157,7 @@ const ui = {
   scoreRecoveryPerSecondValue: document.getElementById('scoreRecoveryPerSecondValue'),
   clearCache: document.getElementById('clearCache'),
   calibration: document.getElementById('calibration'),
+  appVersion: document.getElementById('appVersion'),
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
   tapZone: document.getElementById('tapZone'),
@@ -279,16 +280,6 @@ function getHitToleranceMs() {
 
 function getMinHitWindowMs() {
   return Math.round(getSubdivMs());
-}
-
-function formatPatternForLog(pattern) {
-  return pattern
-    .map((value, idx) => {
-      const marker = value === 1 ? '!' : "'";
-      const spacer = (idx + 1) % 4 === 0 && idx < pattern.length - 1 ? ' ' : '';
-      return `${marker}${spacer}`;
-    })
-    .join('');
 }
 
 function updateHitToleranceUI() {
@@ -483,12 +474,12 @@ function appendLog(message) {
   state.logEvents.push(message);
   ui.testLog.textContent = state.logEvents.length > 0
     ? state.logEvents.join('\n')
-    : "Le log des erreurs s'affichera ici pendant la phase TAP.";
+    : 'Les changements de score seront affichés ici.';
 }
 
 function resetLog() {
   state.logEvents = [];
-  ui.testLog.textContent = "Le log des erreurs s'affichera ici pendant la phase TAP.";
+  ui.testLog.textContent = 'Les changements de score seront affichés ici.';
 }
 
 function formatErrorMs(ms) {
@@ -521,15 +512,22 @@ function showResultScreen(title, text) {
   ui.resultScreen.classList.remove('hidden');
 }
 
-function consumeScorePoint() {
-  if (state.score <= 0) return;
-  state.score = Math.max(0, state.score - 1);
+function setScore(nextScore, reason) {
+  const clampedScore = clamp(nextScore, 0, MAX_SCORE);
+  if (clampedScore === state.score) return;
+  state.score = clampedScore;
   animateDisplayedScoreTo(state.score);
+  appendLog(`score=${state.score.toFixed(2)} | reason: ${reason}`);
 
   if (state.score <= 0) {
     stopEngine();
     showResultScreen('Game Over', `You reached level ${state.level}.`);
   }
+}
+
+function consumeScorePoint(reason) {
+  if (state.score <= 0) return;
+  setScore(state.score - 1, reason);
 }
 
 function prepareTapPhase(measureStart, patternForMeasure) {
@@ -538,9 +536,6 @@ function prepareTapPhase(measureStart, patternForMeasure) {
   state.tapMeasureStart = measureStart;
   state.tapPattern = [...patternForMeasure];
   const subdivDur = getSubdivDur();
-
-  if (state.logEvents.length > 0) appendLog('______');
-  appendLog(formatPatternForLog(patternForMeasure));
 
   patternForMeasure.forEach((value, idx) => {
     if (value !== 1 || idx === 15) return;
@@ -607,8 +602,7 @@ function markLiveMisses() {
     if (adjustedNow > hit.targetTime + missDelaySec) {
       hit.consumed = true;
       hit.missed = true;
-      consumeScorePoint();
-      appendLog(`note[${hit.idx + 1}] missed`);
+      consumeScorePoint(`missed note[${hit.idx + 1}]`);
     }
   });
 
@@ -777,8 +771,7 @@ function startScoreRegeneration() {
     if (state.score >= MAX_SCORE) return;
     const recoveredScore = state.scoreRecoveryPerSecond * regenStepSeconds;
     if (recoveredScore <= 0) return;
-    state.score = clamp(state.score + recoveredScore, 0, MAX_SCORE);
-    animateDisplayedScoreTo(state.score);
+    setScore(state.score + recoveredScore, 'score regeneration');
   }, SCORE_REGEN_INTERVAL_MS);
 }
 
@@ -1034,20 +1027,20 @@ function recordTap() {
         hit.correct = true;
       } else {
         hit.correct = false;
-        consumeScorePoint();
-        appendLog(`note[${hit.idx + 1}] wrong timing (${formatErrorMs(errorSec * 1000)})`);
+        consumeScorePoint(`wrong timing note[${hit.idx + 1}] (${formatErrorMs(errorSec * 1000)})`);
       }
     } else {
-      consumeScorePoint();
+      let scoreReason = '';
       const nearbyNote = getOldestPatternNoteWithinSubdiv(adjustedTapTime);
 
       if (nearbyNote) {
         const errorMs = (adjustedTapTime - nearbyNote.noteTime) * 1000;
-        appendLog(`note[${nearbyNote.idx + 1}] wrong timing (${formatErrorMs(errorMs)})`);
+        scoreReason = `wrong timing note[${nearbyNote.idx + 1}] (${formatErrorMs(errorMs)})`;
       } else {
         const closestIndex = getClosestSubdivIndex(adjustedTapTime);
-        appendLog(`false note entered[${closestIndex + 1}]`);
+        scoreReason = `false note entered[${closestIndex + 1}]`;
       }
+      consumeScorePoint(scoreReason);
     }
   } else {
     return;
@@ -1273,4 +1266,4 @@ updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();
 showStartScreen();
-console.info(`RhythmGame version ${APP_VERSION}`);
+ui.appVersion.textContent = APP_VERSION;

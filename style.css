@@ -48,6 +48,13 @@ body.note-flash {
   display: none;
 }
 
+.start-screen .app-version {
+  margin: 0;
+  justify-self: center;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
 .start-button {
   justify-self: center;
   font-size: 2rem;

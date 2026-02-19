@@ -4,12 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
-    <link rel="stylesheet" href="style.css?v=1.0.10" />
-    <script src="main.js?v=1.0.10" defer></script>
+    <link rel="stylesheet" href="style.css?v=1.0.13" />
+    <script src="main.js?v=1.0.13" defer></script>
   </head>
   <body>
     <main class="app">
       <section id="startScreen" class="screen start-screen">
+        <p class="app-version">Version <span id="appVersion"></span></p>
         <button id="startGame" class="start-button" type="button">START</button>
 
         <label class="debug-level">
@@ -154,8 +155,8 @@
         </details>
 
         <details class="card test-log-panel">
-          <summary>Test log</summary>
-          <pre id="testLog" class="test-log">Le log des erreurs s'affichera ici pendant la phase TAP.</pre>
+          <summary>Score log</summary>
+          <pre id="testLog" class="test-log">Les changements de score seront affichés ici.</pre>
         </details>
       </section>
 

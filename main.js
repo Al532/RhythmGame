@@ -7,9 +7,9 @@ const BPM_MAX = 120;
 const INPUT_LATENCY_DEFAULT_MS = 50;
 const INPUT_LATENCY_MIN_MS = 0;
 const INPUT_LATENCY_MAX_MS = 400;
-const HIT_TOLERANCE_DEFAULT_MS = 150;
-const HIT_TOLERANCE_MIN_MS = 50;
-const HIT_TOLERANCE_MAX_MS = 300;
+const HIT_TOLERANCE_DEFAULT = 50;
+const HIT_TOLERANCE_MIN = 0;
+const HIT_TOLERANCE_MAX = 100;
 const CALIBRATION_BPM = 60;
 const CALIBRATION_BEATS = 16;
 const CALIBRATION_MAX_DELAY_MS = 500;
@@ -51,6 +51,7 @@ const ui = {
   latencyValue: document.getElementById('latencyValue'),
   hitTolerance: document.getElementById('hitTolerance'),
   hitToleranceValue: document.getElementById('hitToleranceValue'),
+  hitToleranceMsValue: document.getElementById('hitToleranceMsValue'),
   calibration: document.getElementById('calibration'),
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
@@ -76,7 +77,7 @@ const state = {
   isCalibrating: false,
   bpm: BPM_DEFAULT,
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
-  hitToleranceMs: HIT_TOLERANCE_DEFAULT_MS,
+  hitTolerance: HIT_TOLERANCE_DEFAULT,
 
   firstHitWeights: [...FIRST_HIT_WEIGHTS_DEFAULT],
   jumpWeights: [...JUMP_WEIGHTS_DEFAULT],
@@ -131,6 +132,30 @@ function generatePattern() {
 
 function getSubdivDur() {
   return (60 / state.bpm) / 4;
+}
+
+function getSubdivMs() {
+  return getSubdivDur() * 1000;
+}
+
+function getHitToleranceMs() {
+  return (state.hitTolerance / 100) * getSubdivMs();
+}
+
+function formatPatternForLog(pattern) {
+  return pattern
+    .map((value, idx) => {
+      const marker = value === 1 ? '!' : "'";
+      const spacer = (idx + 1) % 4 === 0 && idx < pattern.length - 1 ? ' ' : '';
+      return `${marker}${spacer}`;
+    })
+    .join('');
+}
+
+function updateHitToleranceUI() {
+  const toleranceMs = Math.round(getHitToleranceMs());
+  ui.hitToleranceValue.textContent = String(state.hitTolerance);
+  ui.hitToleranceMsValue.textContent = String(toleranceMs);
 }
 
 function getMeasureDur() {
@@ -244,6 +269,9 @@ function prepareTapPhase(measureStart) {
   state.tapMeasureStart = measureStart;
   const subdivDur = getSubdivDur();
 
+  if (state.logEvents.length > 0) appendLog('______');
+  appendLog(formatPatternForLog(state.pattern));
+
   state.pattern.forEach((value, idx) => {
     if (value !== 1 || idx === 15) return;
     const targetTime = measureStart + (idx * subdivDur);
@@ -264,15 +292,14 @@ function markLiveMisses() {
   if (!state.audioCtx || state.livePhase !== PHASE.TAP) return;
 
   const adjustedNow = state.audioCtx.currentTime - (state.latencyOffsetMs / 1000);
-  const toleranceSec = state.hitToleranceMs / 1000;
+  const missDelaySec = getSubdivDur();
 
   state.expectedHits.forEach((hit) => {
     if (hit.hit || hit.missed) return;
-    if (adjustedNow > hit.targetTime + toleranceSec) {
+    if (adjustedNow > hit.targetTime + missDelaySec) {
       hit.missed = true;
       consumeScorePoint();
-      const errorMs = (adjustedNow - hit.targetTime) * 1000;
-      appendLog(`note[${hit.idx + 1}] ${formatErrorMs(errorMs)}`);
+      appendLog(`note[${hit.idx + 1}] missed`);
     }
   });
 
@@ -403,30 +430,41 @@ function updateStaticUI() {
   ui.tapZone.classList.toggle('active', (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating));
 }
 
-function getClosestExpectedHit(adjustedTapTime) {
-  const toleranceSec = state.hitToleranceMs / 1000;
-  let closestHit = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
+function getOldestExpectedHitWithinTolerance(adjustedTapTime) {
+  const toleranceSec = getHitToleranceMs() / 1000;
 
-  state.expectedHits.forEach((hit) => {
-    if (hit.hit || hit.missed) return;
+  for (const hit of state.expectedHits) {
+    if (hit.hit || hit.missed) continue;
     const distance = Math.abs(adjustedTapTime - hit.targetTime);
-    if (distance <= toleranceSec && distance < bestDistance) {
-      bestDistance = distance;
-      closestHit = hit;
+    if (distance <= toleranceSec) {
+      return hit;
     }
-  });
+  }
 
-  return closestHit;
+  return null;
 }
 
-function getTapPatternIndex(adjustedTapTime) {
+function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
+  const windowSec = getSubdivDur();
+
+  for (let idx = 0; idx < state.pattern.length; idx += 1) {
+    if (state.pattern[idx] !== 1 || idx === 15) continue;
+    const noteTime = state.tapMeasureStart + (idx * getSubdivDur());
+    const distance = Math.abs(adjustedTapTime - noteTime);
+    if (distance <= windowSec) {
+      return { idx, noteTime };
+    }
+  }
+
+  return null;
+}
+
+function getClosestSubdivIndex(adjustedTapTime) {
   const subdivDur = getSubdivDur();
-  if (subdivDur <= 0) return -1;
+  if (subdivDur <= 0) return 0;
   const relative = (adjustedTapTime - state.tapMeasureStart) / subdivDur;
-  const index = Math.round(relative);
-  if (index < 0 || index >= PATTERN_LENGTH) return -1;
-  return index;
+  const rounded = Math.round(relative);
+  return Math.max(0, Math.min(PATTERN_LENGTH - 1, rounded));
 }
 
 function recordCalibrationTap(tapTime) {
@@ -508,24 +546,20 @@ function recordTap() {
     recordCalibrationTap(tapTime);
   } else if (state.isRunning && state.livePhase === PHASE.TAP) {
     const adjustedTapTime = tapTime - (state.latencyOffsetMs / 1000);
-    const hit = getClosestExpectedHit(adjustedTapTime);
+    const hit = getOldestExpectedHitWithinTolerance(adjustedTapTime);
 
     if (hit) {
       hit.hit = true;
     } else {
-      const index = getTapPatternIndex(adjustedTapTime);
-      if (index === -1) return;
+      consumeScorePoint();
+      const nearbyNote = getOldestPatternNoteWithinSubdiv(adjustedTapTime);
 
-      if (state.pattern[index] === 0) {
-        consumeScorePoint();
-        appendLog(`silence[${index + 1}]`);
+      if (nearbyNote) {
+        const errorMs = (adjustedTapTime - nearbyNote.noteTime) * 1000;
+        appendLog(`note[${nearbyNote.idx + 1}] wrong timing (${formatErrorMs(errorMs)})`);
       } else {
-        const expectedNote = state.expectedHits.find((candidate) => candidate.idx === index && !candidate.hit && !candidate.missed);
-        if (!expectedNote) return;
-        expectedNote.missed = true;
-        consumeScorePoint();
-        const errorMs = (adjustedTapTime - expectedNote.targetTime) * 1000;
-        appendLog(`note[${index + 1}] ${formatErrorMs(errorMs)}`);
+        const closestIndex = getClosestSubdivIndex(adjustedTapTime);
+        appendLog(`false note entered[${closestIndex + 1}]`);
       }
     }
   } else {
@@ -562,14 +596,14 @@ ui.latency.min = String(0);
 ui.latency.max = String(INPUT_LATENCY_MAX_MS);
 ui.latency.value = String(INPUT_LATENCY_DEFAULT_MS);
 ui.latencyValue.textContent = String(INPUT_LATENCY_DEFAULT_MS);
-ui.hitTolerance.min = String(HIT_TOLERANCE_MIN_MS);
-ui.hitTolerance.max = String(HIT_TOLERANCE_MAX_MS);
-ui.hitTolerance.value = String(HIT_TOLERANCE_DEFAULT_MS);
-ui.hitToleranceValue.textContent = String(HIT_TOLERANCE_DEFAULT_MS);
+ui.hitTolerance.min = String(HIT_TOLERANCE_MIN);
+ui.hitTolerance.max = String(HIT_TOLERANCE_MAX);
+ui.hitTolerance.value = String(HIT_TOLERANCE_DEFAULT);
 
 ui.bpm.addEventListener('input', (e) => {
   state.bpm = Number(e.target.value);
   ui.bpmValue.textContent = String(state.bpm);
+  updateHitToleranceUI();
 });
 
 ui.latency.addEventListener('input', (e) => {
@@ -579,8 +613,8 @@ ui.latency.addEventListener('input', (e) => {
 });
 
 ui.hitTolerance.addEventListener('input', (e) => {
-  state.hitToleranceMs = Number(e.target.value);
-  ui.hitToleranceValue.textContent = String(state.hitToleranceMs);
+  state.hitTolerance = Number(e.target.value);
+  updateHitToleranceUI();
 });
 
 ui.startStop.addEventListener('click', toggleEngine);
@@ -607,5 +641,6 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 bindProbabilityControls();
+updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();

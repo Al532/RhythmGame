@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 const LEVEL_DEFAULT = 5;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -32,20 +32,21 @@ const JUMP_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0, 10, 0];
 const JUMP_WEIGHTS_LEVEL10_DEFAULT = [2, 6, 10, 1, 2];
 
 const DRUM_GAIN = {
-  snare: 0.42,
-  kick: 0.6,
+  snare: 0.5,
+  kick: 0.54,
   hihat: 0.22,
-  cymbal: 0.18
+  cymbal: 0.13
 };
 
 const DRUM_TUNING = {
-  snare: { decay: 0.1, bpFreq: 2200, bpQ: 1.5 },
+  snare: { decay: 0.1, bpFreq: 2800, bpQ: 1.7 },
   kick: { startFreq: 120, endFreq: 50, decay: 0.15 },
   hihat: { decay: 0.03, hpFreq: 5500 },
   cymbal: { hpFreq: 4200 }
 };
 
 const START_COUNTIN_BEATS = 4;
+const LISTEN_RECOVERY_DURATION_MS = 100;
 
 const PHASE = {
   LISTEN: 'LISTEN',
@@ -617,7 +618,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
       ui.tapZone.classList.remove('listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       scheduleListenSaturationRelease(measureStart);
-      startListenScoreRecovery(getMeasureDur() * 1000);
+      startListenScoreRecovery(LISTEN_RECOVERY_DURATION_MS);
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 
@@ -627,13 +628,16 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     if (patternForMeasure[idx] === 1) {
       playSnare(eventTime);
 
-      if (phase === PHASE.LISTEN) {
-        const feedbackDelayMs = Math.max(0, (eventTime - state.audioCtx.currentTime) * 1000);
-        setTimeout(() => {
-          if (!state.isRunning || state.livePhase !== PHASE.LISTEN) return;
+      const feedbackDelayMs = Math.max(0, (eventTime - state.audioCtx.currentTime) * 1000);
+      setTimeout(() => {
+        if (!state.isRunning) return;
+        if (state.livePhase === PHASE.LISTEN) {
           triggerTapZoneFeedback({ vibrate: true });
-        }, feedbackDelayMs);
-      }
+        }
+        if (state.livePhase === PHASE.LISTEN || state.livePhase === PHASE.TAP) {
+          triggerBackgroundNoteFlash();
+        }
+      }, feedbackDelayMs);
     }
 
     if (idx % 4 === 0) playKick(eventTime);
@@ -663,6 +667,13 @@ function triggerTapZoneFeedback({ vibrate = false } = {}) {
   if (vibrate) {
     triggerShortVibration(10);
   }
+}
+
+function triggerBackgroundNoteFlash() {
+  document.body.classList.remove('note-flash');
+  // Force restart of a short animation on dense notes.
+  void document.body.offsetWidth;
+  document.body.classList.add('note-flash');
 }
 
 function stopScoreRecoveryAnimation() {

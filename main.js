@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.5';
+const APP_VERSION = '1.0.6';
 const LEVEL_DEFAULT = 5;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -211,7 +211,8 @@ const state = {
 
   logEvents: [],
   tapMeasureStart: 0,
-  tapPattern: null
+  tapPattern: null,
+  isIntroduction: false
 };
 
 function weightedChoice(values, weights) {
@@ -600,6 +601,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
   const phaseStartTime = phase === PHASE.TAP ? measureStart - subdivDur : measureStart;
 
   setTimeout(() => {
+    state.isIntroduction = false;
     state.livePhase = phase;
     state.liveRepetition = repetition;
     updateStaticUI();
@@ -763,12 +765,15 @@ function startEngine() {
   state.tapPattern = null;
   state.score = 0;
   state.displayedScore = 0;
+  state.isIntroduction = true;
+
+  // Introduction : phase d'entrée uniquement avec la hi-hat avant le début du jeu.
   const countInStart = state.audioCtx.currentTime + 0.08;
   const beatDur = 60 / state.bpm;
   for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
     playHiHat(countInStart + (beat * beatDur));
   }
-  [11, 15].forEach((idx) => {
+  [10, 14].forEach((idx) => {
     playHiHat(countInStart + ((idx / 4) * beatDur));
   });
 
@@ -786,6 +791,7 @@ function startEngine() {
 
 function stopEngine() {
   state.isRunning = false;
+  state.isIntroduction = false;
   if (state.scheduleTimer) {
     clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
@@ -822,10 +828,11 @@ function updateScoreUI() {
 }
 
 function getTapZoneLabel() {
-  if (!state.isRunning) return 'READY?';
+  if (!state.isRunning) return '';
+  if (state.isIntroduction) return 'READY?';
   if (state.livePhase === PHASE.LISTEN) return 'LISTEN...';
   if (state.livePhase === PHASE.TAP) return 'TAP!';
-  return 'READY?';
+  return '';
 }
 
 function updateStaticUI() {

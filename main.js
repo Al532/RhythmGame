@@ -133,6 +133,7 @@ const state = {
   scheduleTimer: null,
 
   expectedHits: [],
+  expectedIndex: 0,
   score: MAX_SCORE,
   lastFlash: null,
 
@@ -362,6 +363,7 @@ function consumeScorePoint() {
 
 function prepareTapPhase(measureStart, patternForMeasure) {
   state.expectedHits = [];
+  state.expectedIndex = 0;
   state.tapMeasureStart = measureStart;
   state.tapPattern = [...patternForMeasure];
   const subdivDur = getSubdivDur();
@@ -375,6 +377,7 @@ function prepareTapPhase(measureStart, patternForMeasure) {
     state.expectedHits.push({
       idx,
       targetTime,
+      consumed: false,
       validated: false,
       correct: false,
       missed: false
@@ -386,6 +389,42 @@ function prepareTapPhase(measureStart, patternForMeasure) {
   updateScoreUI();
 }
 
+
+function isHitJudged(hit) {
+  return Boolean(hit.consumed || hit.validated || hit.missed);
+}
+
+function advanceExpectedIndex() {
+  while (state.expectedIndex < state.expectedHits.length && isHitJudged(state.expectedHits[state.expectedIndex])) {
+    state.expectedIndex += 1;
+  }
+}
+
+function getClosestCandidateFromExpectedWindow(adjustedTapTime) {
+  if (state.expectedHits.length === 0) return null;
+
+  advanceExpectedIndex();
+
+  const from = Math.max(0, state.expectedIndex - 2);
+  const to = Math.min(state.expectedHits.length - 1, state.expectedIndex + 2);
+  let closestHit = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let i = from; i <= to; i += 1) {
+    const hit = state.expectedHits[i];
+    if (isHitJudged(hit)) continue;
+
+    const distance = Math.abs(adjustedTapTime - hit.targetTime);
+    if (!closestHit || distance < bestDistance || (distance === bestDistance && hit.targetTime < closestHit.targetTime)) {
+      bestDistance = distance;
+      closestHit = hit;
+    }
+  }
+
+  if (!closestHit) return null;
+  return { hit: closestHit, distanceSec: bestDistance };
+}
+
 function markLiveMisses() {
   if (!state.audioCtx || state.livePhase !== PHASE.TAP) return;
 
@@ -393,15 +432,18 @@ function markLiveMisses() {
   const missDelaySec = getSubdivDur();
 
   state.expectedHits.forEach((hit) => {
-    if (hit.validated || hit.missed) return;
+    if (isHitJudged(hit)) return;
     if (adjustedNow > hit.targetTime + missDelaySec) {
+      hit.consumed = true;
       hit.missed = true;
       consumeScorePoint();
       appendLog(`note[${hit.idx + 1}] missed`);
     }
   });
 
+  advanceExpectedIndex();
 }
+
 
 function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
   const subdivDur = getSubdivDur();
@@ -541,25 +583,6 @@ function updateStaticUI() {
   ui.tapZone.classList.toggle('active', (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating));
 }
 
-function getClosestExpectedHitWithinWindow(adjustedTapTime) {
-  const hitWindowSec = state.hitWindowMs / 1000;
-  let closestHit = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (const hit of state.expectedHits) {
-    if (hit.validated || hit.missed) continue;
-    const distance = Math.abs(adjustedTapTime - hit.targetTime);
-    if (distance > hitWindowSec) continue;
-
-    if (!closestHit || distance < bestDistance || (distance === bestDistance && hit.targetTime < closestHit.targetTime)) {
-      bestDistance = distance;
-      closestHit = hit;
-    }
-  }
-
-  return closestHit;
-}
-
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
   const windowSec = getSubdivDur();
   const pattern = state.tapPattern ?? state.pattern;
@@ -569,7 +592,7 @@ function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
     if (pattern[idx] !== 1 || idx === 15) continue;
 
     const expectedHit = expectedHitByIdx.get(idx);
-    if (expectedHit && (expectedHit.validated || expectedHit.missed)) continue;
+    if (expectedHit && isHitJudged(expectedHit)) continue;
 
     const noteTime = state.tapMeasureStart + (idx * getSubdivDur());
     const distance = Math.abs(adjustedTapTime - noteTime);
@@ -669,10 +692,14 @@ function recordTap() {
     recordCalibrationTap(tapTime);
   } else if (state.isRunning && state.livePhase === PHASE.TAP) {
     const adjustedTapTime = tapTime - (state.latencyOffsetMs / 1000);
-    const hit = getClosestExpectedHitWithinWindow(adjustedTapTime);
+    const candidate = getClosestCandidateFromExpectedWindow(adjustedTapTime);
+    const hitWindowSec = state.hitWindowMs / 1000;
 
-    if (hit) {
+    if (candidate && candidate.distanceSec <= hitWindowSec) {
+      const hit = candidate.hit;
+      hit.consumed = true;
       hit.validated = true;
+      advanceExpectedIndex();
       const toleranceSec = getHitToleranceMs() / 1000;
       const errorSec = adjustedTapTime - hit.targetTime;
 

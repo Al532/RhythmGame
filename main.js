@@ -1,12 +1,12 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 const LEVEL_DEFAULT = 5;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
-const BPM_LEVEL1_DEFAULT = 70;
-const BPM_LEVEL10_DEFAULT = 110;
+const BPM_LEVEL1_DEFAULT = 60;
+const BPM_LEVEL10_DEFAULT = 120;
 const BPM_MIN = 40;
 const BPM_MAX = 120;
 const INPUT_LATENCY_DEFAULT_MS = 15;
@@ -25,9 +25,11 @@ const SCHED_INTERVAL_MS = 25;
 const MAX_SCORE = 5;
 
 const FIRST_HIT_INDICES = [1, 2, 3];
-const FIRST_HIT_WEIGHTS_DEFAULT = [5, 10, 5];
+const FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0];
+const FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT = [10, 5, 10];
 const JUMP_VALUES = [1, 2, 3, 4, 5];
-const JUMP_WEIGHTS_DEFAULT = [1, 10, 10, 1, 1];
+const JUMP_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0, 10, 0];
+const JUMP_WEIGHTS_LEVEL10_DEFAULT = [2, 6, 10, 1, 2];
 
 const DRUM_GAIN = {
   snare: 0.42,
@@ -175,12 +177,12 @@ const state = {
   hitTolerance: HIT_TOLERANCE_DEFAULT,
   hitWindowMs: HIT_WINDOW_DEFAULT_MS,
 
-  firstHitWeightsLevel1: [...FIRST_HIT_WEIGHTS_DEFAULT],
-  firstHitWeightsLevel10: [...FIRST_HIT_WEIGHTS_DEFAULT],
-  jumpWeightsLevel1: [...JUMP_WEIGHTS_DEFAULT],
-  jumpWeightsLevel10: [...JUMP_WEIGHTS_DEFAULT],
-  firstHitWeights: [...FIRST_HIT_WEIGHTS_DEFAULT],
-  jumpWeights: [...JUMP_WEIGHTS_DEFAULT],
+  firstHitWeightsLevel1: [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT],
+  firstHitWeightsLevel10: [...FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT],
+  jumpWeightsLevel1: [...JUMP_WEIGHTS_LEVEL1_DEFAULT],
+  jumpWeightsLevel10: [...JUMP_WEIGHTS_LEVEL10_DEFAULT],
+  firstHitWeights: [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT],
+  jumpWeights: [...JUMP_WEIGHTS_LEVEL1_DEFAULT],
 
   patternNumber: 1,
   pattern: [],
@@ -309,22 +311,22 @@ function applyPersistedSettings() {
     state.bpmLevel10 = clamp(Math.round(storedBpmLevel10), BPM_MIN, BPM_MAX);
   }
 
-  const storedFirstLevel1 = parseStoredArray(STORAGE_KEYS.weightFirstLevel1, FIRST_HIT_WEIGHTS_DEFAULT.length);
+  const storedFirstLevel1 = parseStoredArray(STORAGE_KEYS.weightFirstLevel1, FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT.length);
   if (storedFirstLevel1) {
     state.firstHitWeightsLevel1 = storedFirstLevel1.map((weight) => clamp(weight, 0, 10));
   }
 
-  const storedFirstLevel10 = parseStoredArray(STORAGE_KEYS.weightFirstLevel10, FIRST_HIT_WEIGHTS_DEFAULT.length);
+  const storedFirstLevel10 = parseStoredArray(STORAGE_KEYS.weightFirstLevel10, FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT.length);
   if (storedFirstLevel10) {
     state.firstHitWeightsLevel10 = storedFirstLevel10.map((weight) => clamp(weight, 0, 10));
   }
 
-  const storedJumpLevel1 = parseStoredArray(STORAGE_KEYS.weightJumpLevel1, JUMP_WEIGHTS_DEFAULT.length);
+  const storedJumpLevel1 = parseStoredArray(STORAGE_KEYS.weightJumpLevel1, JUMP_WEIGHTS_LEVEL1_DEFAULT.length);
   if (storedJumpLevel1) {
     state.jumpWeightsLevel1 = storedJumpLevel1.map((weight) => clamp(weight, 0, 10));
   }
 
-  const storedJumpLevel10 = parseStoredArray(STORAGE_KEYS.weightJumpLevel10, JUMP_WEIGHTS_DEFAULT.length);
+  const storedJumpLevel10 = parseStoredArray(STORAGE_KEYS.weightJumpLevel10, JUMP_WEIGHTS_LEVEL10_DEFAULT.length);
   if (storedJumpLevel10) {
     state.jumpWeightsLevel10 = storedJumpLevel10.map((weight) => clamp(weight, 0, 10));
   }
@@ -989,10 +991,10 @@ function clearLocalCache() {
   state.level = LEVEL_DEFAULT;
   state.bpmLevel1 = BPM_LEVEL1_DEFAULT;
   state.bpmLevel10 = BPM_LEVEL10_DEFAULT;
-  state.firstHitWeightsLevel1 = [...FIRST_HIT_WEIGHTS_DEFAULT];
-  state.firstHitWeightsLevel10 = [...FIRST_HIT_WEIGHTS_DEFAULT];
-  state.jumpWeightsLevel1 = [...JUMP_WEIGHTS_DEFAULT];
-  state.jumpWeightsLevel10 = [...JUMP_WEIGHTS_DEFAULT];
+  state.firstHitWeightsLevel1 = [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT];
+  state.firstHitWeightsLevel10 = [...FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT];
+  state.jumpWeightsLevel1 = [...JUMP_WEIGHTS_LEVEL1_DEFAULT];
+  state.jumpWeightsLevel10 = [...JUMP_WEIGHTS_LEVEL10_DEFAULT];
   syncInterpolatedSettings();
   state.latencyOffsetMs = INPUT_LATENCY_DEFAULT_MS;
   state.hitTolerance = HIT_TOLERANCE_DEFAULT;

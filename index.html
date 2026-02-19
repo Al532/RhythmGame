@@ -17,23 +17,7 @@
   </head>
   <body>
     <main class="app">
-      <section class="controls card">
-        <h2>Paramétrage</h2>
-
-        <label>
-          Input latency offset (ms): <span id="latencyValue">15</span>
-          <input id="latency" type="range" min="0" max="200" step="5" value="15" />
-        </label>
-
-        <p id="calibrationResult" class="calibration-result">Calibration non lancée.</p>
-
-        <div class="control-buttons">
-          <button id="clearCache" type="button">Supprimer le cache local</button>
-          <button id="calibration" type="button">Calibration</button>
-        </div>
-      </section>
-
-      <section class="game card">
+      <section class="game">
         <label>
           BPM: <span id="bpmValue">90</span>
           <input id="bpm" type="range" min="40" max="120" value="90" />
@@ -44,6 +28,20 @@
         <button id="tapZone" class="tap-zone" aria-label="Tap input zone">
           <span>Tap</span>
         </button>
+      </section>
+
+      <section class="controls card">
+        <label>
+          Input latency offset (ms): <span id="latencyValue">15</span>
+          <input id="latency" type="range" min="0" max="200" step="5" value="15" />
+        </label>
+
+        <p id="calibrationResult" class="calibration-result">Calibration non lancée.</p>
+
+        <div class="control-buttons">
+          <button id="calibration" type="button">Calibration</button>
+          <button id="clearCache" type="button">Reset parameters</button>
+        </div>
       </section>
 
       <details class="probabilities card" id="probabilitiesPanel">

@@ -131,7 +131,7 @@ const state = {
   expectedHits: [],
   expectedIndex: 0,
   score: MAX_SCORE,
-  lastFlash: null,
+  scoreRecoveryFrame: null,
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
@@ -453,7 +453,10 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     updateStaticUI();
 
     if (phase === PHASE.TAP) {
+      stopScoreRecoveryAnimation();
       prepareTapPhase(measureStart, patternForMeasure);
+    } else if (phase === PHASE.LISTEN) {
+      startListenScoreRecovery(getMeasureDur() * 1000);
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 
@@ -473,11 +476,52 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
 }
 
 function flashScore() {
-  ui.tapZone.style.filter = 'brightness(1.2)';
-  clearTimeout(state.lastFlash);
-  state.lastFlash = setTimeout(() => {
-    ui.tapZone.style.filter = 'none';
-  }, 160);
+  ui.tapZone.classList.remove('loss-flash');
+  // Force restart of the short loss animation on consecutive misses.
+  void ui.tapZone.offsetWidth;
+  ui.tapZone.classList.add('loss-flash');
+}
+
+function stopScoreRecoveryAnimation() {
+  if (state.scoreRecoveryFrame !== null) {
+    cancelAnimationFrame(state.scoreRecoveryFrame);
+    state.scoreRecoveryFrame = null;
+  }
+}
+
+function startListenScoreRecovery(durationMs) {
+  stopScoreRecoveryAnimation();
+
+  const fromScore = clamp(state.score, 0, MAX_SCORE);
+  if (fromScore >= MAX_SCORE || durationMs <= 0) {
+    state.score = MAX_SCORE;
+    updateScoreUI();
+    return;
+  }
+
+  const startTime = performance.now();
+
+  const tick = (now) => {
+    if (!state.isRunning || state.livePhase !== PHASE.LISTEN) {
+      state.scoreRecoveryFrame = null;
+      return;
+    }
+
+    const progress = clamp((now - startTime) / durationMs, 0, 1);
+    state.score = fromScore + ((MAX_SCORE - fromScore) * progress);
+    updateScoreUI();
+
+    if (progress < 1) {
+      state.scoreRecoveryFrame = requestAnimationFrame(tick);
+      return;
+    }
+
+    state.score = MAX_SCORE;
+    state.scoreRecoveryFrame = null;
+    updateScoreUI();
+  };
+
+  state.scoreRecoveryFrame = requestAnimationFrame(tick);
 }
 
 function scheduleLoop() {
@@ -521,7 +565,7 @@ function startEngine() {
   state.livePhase = PHASE.LISTEN;
   state.expectedHits = [];
   state.tapPattern = null;
-  state.score = MAX_SCORE;
+  state.score = 0;
   const countInStart = state.audioCtx.currentTime + 0.08;
   const beatDur = 60 / state.bpm;
   for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
@@ -547,6 +591,7 @@ function stopEngine() {
     state.scheduleTimer = null;
   }
 
+  stopScoreRecoveryAnimation();
   state.expectedHits = [];
   state.tapPattern = null;
   state.livePhase = PHASE.LISTEN;
@@ -750,7 +795,7 @@ function clearLocalCache() {
   ui.hitTolerance.value = String(state.hitTolerance);
   updateHitWindowUI();
   updateHitToleranceUI();
-  ui.calibrationResult.textContent = 'Cache local supprimé : paramètres réinitialisés.';
+  ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
 }
 
 function bindProbabilityControls() {
@@ -817,6 +862,9 @@ ui.hitTolerance.addEventListener('input', (e) => {
 ui.startStop.addEventListener('click', toggleEngine);
 ui.calibration.addEventListener('click', startCalibration);
 ui.clearCache.addEventListener('click', clearLocalCache);
+ui.tapZone.addEventListener('animationend', () => {
+  ui.tapZone.classList.remove('loss-flash');
+});
 
 ui.tapZone.addEventListener('pointerdown', (e) => {
   e.preventDefault();

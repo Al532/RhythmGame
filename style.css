@@ -167,6 +167,22 @@ summary {
   transition: transform 100ms ease, background 140ms ease, border-color 140ms ease;
 }
 
+.tap-zone.loss-flash {
+  animation: lossFlash 50ms ease-out;
+}
+
+@keyframes lossFlash {
+  from {
+    filter: brightness(1.25);
+    transform: scale(0.99);
+  }
+
+  to {
+    filter: none;
+    transform: scale(1);
+  }
+}
+
 .tap-zone.active {
   border-color: color-mix(in srgb, var(--ok), white 25%);
 }

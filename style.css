@@ -96,6 +96,21 @@ h1 {
   background: color-mix(in srgb, var(--warn), transparent 70%);
 }
 
+
+#clearCache {
+  border: 1px solid color-mix(in srgb, var(--danger), transparent 50%);
+  background: color-mix(in srgb, var(--danger), transparent 82%);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#clearCache:hover {
+  background: color-mix(in srgb, var(--danger), transparent 70%);
+}
+
 label {
   display: grid;
   gap: 0.3rem;

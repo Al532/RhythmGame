@@ -55,44 +55,6 @@ h1 {
   opacity: 0.75;
 }
 
-.steps {
-  display: grid;
-  grid-template-columns: repeat(16, minmax(0, 1fr));
-  gap: 0.25rem;
-  margin-bottom: 0.6rem;
-}
-
-.step {
-  height: 2rem;
-  border-radius: 6px;
-  border: 1px solid #3a4278;
-  background: #252b53;
-}
-
-
-.step.current {
-  outline: 2px solid var(--warn);
-}
-
-
-.playhead-wrap {
-  position: relative;
-  height: 8px;
-  background: #2a315e;
-  border-radius: 999px;
-}
-
-.playhead {
-  position: absolute;
-  top: -2px;
-  left: 0;
-  width: 10px;
-  height: 12px;
-  border-radius: 8px;
-  background: var(--warn);
-  transform: translateX(0);
-}
-
 .controls {
   display: grid;
   gap: 0.75rem;
@@ -118,6 +80,32 @@ label {
   gap: 0.3rem;
 }
 
+.probabilities summary {
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.probabilities[open] summary {
+  margin-bottom: 0.75rem;
+}
+
+.probabilities fieldset {
+  border: 1px solid #3a4278;
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.probabilities fieldset + fieldset {
+  margin-top: 0.75rem;
+}
+
+.probabilities legend {
+  padding: 0 0.4rem;
+}
 
 .score {
   display: flex;
@@ -167,9 +155,5 @@ label {
 @media (max-width: 700px) {
   .status-panel {
     grid-template-columns: 1fr;
-  }
-
-  .step {
-    height: 1.45rem;
   }
 }

@@ -5,7 +5,7 @@ const BPM_DEFAULT = 60;
 const BPM_MIN = 40;
 const BPM_MAX = 120;
 const INPUT_LATENCY_DEFAULT_MS = 50;
-const INPUT_LATENCY_MIN_MS = -200;
+const INPUT_LATENCY_MIN_MS = 0;
 const INPUT_LATENCY_MAX_MS = 400;
 const HIT_TOLERANCE_DEFAULT_MS = 150;
 const HIT_TOLERANCE_MIN_MS = 50;
@@ -53,8 +53,6 @@ const ui = {
   hitToleranceValue: document.getElementById('hitToleranceValue'),
   calibration: document.getElementById('calibration'),
   calibrationResult: document.getElementById('calibrationResult'),
-  testMode: document.getElementById('testMode'),
-  testModeStatus: document.getElementById('testModeStatus'),
   testLog: document.getElementById('testLog'),
   startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
@@ -102,10 +100,8 @@ const state = {
   calibrationMatched: new Set(),
   calibrationDelays: [],
 
-  testModeEnabled: false,
-  testModeCompleted: false,
-  testModePhaseStart: null,
-  testLogEvents: []
+  logEvents: [],
+  tapMeasureStart: 0
 };
 
 function weightedChoice(values, weights) {
@@ -217,56 +213,23 @@ function playHiHat(time) {
 }
 
 
-function formatSeconds(seconds) {
-  if (seconds == null || !Number.isFinite(seconds)) return 'n/a';
-  return `${seconds.toFixed(3)}s`;
+function appendLog(message) {
+  state.logEvents.push(message);
+  ui.testLog.textContent = state.logEvents.length > 0
+    ? state.logEvents.join('\n')
+    : "Le log des erreurs s'affichera ici pendant la phase TAP.";
 }
 
-function appendTestLog(message) {
-  if (!state.testModeEnabled) return;
-  state.testLogEvents.push(message);
+function resetLog() {
+  state.logEvents = [];
+  ui.testLog.textContent = "Le log des erreurs s'affichera ici pendant la phase TAP.";
 }
 
-function resetTestLogRuntime() {
-  state.testLogEvents = [];
-  state.testModePhaseStart = null;
-}
-
-function renderTestLog() {
-  if (!state.testModeEnabled || !state.testModeCompleted) return;
-
-  const total = state.expectedHits.length;
-  const hits = state.expectedHits.filter((event) => event.hit).length;
-  const misses = state.expectedHits.filter((event) => event.missed).length;
-
-  const report = [
-    '=== MODE TEST : RAPPORT PHASE TAP UNIQUE ===',
-    `BPM=${state.bpm} | Tolérance=${state.hitToleranceMs} ms | Latence appliquée=${state.latencyOffsetMs} ms`,
-    `Score final: ${state.score}/${MAX_SCORE}`,
-    `Synthèse: ${hits} hit(s), ${misses} miss(es), ${total} attendu(s)`,
-    '',
-    '--- Détails ---',
-    ...state.testLogEvents
-  ];
-
-  ui.testLog.textContent = report.join('\n');
-  ui.testModeStatus.textContent = 'Mode test terminé. Rapport détaillé affiché ci-dessous.';
-}
-
-function maybeCompleteTestMode(source) {
-  if (!state.testModeEnabled || state.testModeCompleted || !state.audioCtx || state.livePhase !== PHASE.TAP) return;
-
-  const toleranceSec = state.hitToleranceMs / 1000;
-  const lastTarget = state.expectedHits.reduce((max, hit) => Math.max(max, hit.targetTime), Number.NEGATIVE_INFINITY);
-  if (!Number.isFinite(lastTarget)) return;
-
-  const adjustedNow = state.audioCtx.currentTime - (state.latencyOffsetMs / 1000);
-  if (adjustedNow <= (lastTarget + toleranceSec)) return;
-
-  state.testModeCompleted = true;
-  appendTestLog(`[FIN] Test clos via ${source} à tAdj=${formatSeconds(adjustedNow)}.`);
-  stopEngine({ preserveTestMode: true });
-  renderTestLog();
+function formatErrorMs(ms) {
+  const rounded = Math.round(ms);
+  if (rounded === 0) return '0 ms';
+  if (rounded > 0) return `${rounded} ms late`;
+  return `${Math.abs(rounded)} ms early`;
 }
 
 function consumeScorePoint() {
@@ -278,13 +241,8 @@ function consumeScorePoint() {
 
 function prepareTapPhase(measureStart) {
   state.expectedHits = [];
+  state.tapMeasureStart = measureStart;
   const subdivDur = getSubdivDur();
-
-  if (state.testModeEnabled) {
-    resetTestLogRuntime();
-    state.testModePhaseStart = measureStart;
-    appendTestLog(`[PHASE] TAP démarrée à ${formatSeconds(measureStart)}.`);
-  }
 
   state.pattern.forEach((value, idx) => {
     if (value !== 1 || idx === 15) return;
@@ -296,7 +254,6 @@ function prepareTapPhase(measureStart) {
       missed: false
     });
 
-    appendTestLog(`[CIBLE] idx=${idx} target=${formatSeconds(targetTime)}.`);
   });
 
   state.score = MAX_SCORE;
@@ -314,11 +271,11 @@ function markLiveMisses() {
     if (adjustedNow > hit.targetTime + toleranceSec) {
       hit.missed = true;
       consumeScorePoint();
-      appendTestLog(`[MISS] idx=${hit.idx} adjustedNow=${formatSeconds(adjustedNow)} target=${formatSeconds(hit.targetTime)}.`);
+      const errorMs = (adjustedNow - hit.targetTime) * 1000;
+      appendLog(`note[${hit.idx + 1}] ${formatErrorMs(errorMs)}`);
     }
   });
 
-  maybeCompleteTestMode('markLiveMisses');
 }
 
 function scheduleMeasure(measureStart, phase, repetition) {
@@ -368,14 +325,6 @@ function scheduleLoop() {
     if (state.phase === PHASE.LISTEN) {
       state.phase = PHASE.TAP;
     } else {
-      if (state.testModeEnabled) {
-        appendTestLog('[INFO] Phase TAP planifiée; aucune phase supplémentaire en mode test.');
-        state.phase = PHASE.LISTEN;
-        state.nextMeasureTime += getMeasureDur();
-        updateStaticUI();
-        continue;
-      }
-
       state.phase = PHASE.LISTEN;
       state.repetition += 1;
       if (state.repetition > REPS_PER_PATTERN) {
@@ -405,12 +354,7 @@ function startEngine() {
   state.currentMeasureStart = state.audioCtx.currentTime + 0.08;
   state.nextMeasureTime = state.currentMeasureStart;
 
-  if (state.testModeEnabled) {
-    state.testModeCompleted = false;
-    resetTestLogRuntime();
-    ui.testLog.textContent = 'Mode test actif : en attente de la phase TAP...';
-    ui.testModeStatus.textContent = 'Mode test actif : une seule phase TAP sera évaluée.';
-  }
+  resetLog();
 
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);
   state.scheduleTimer = setInterval(scheduleLoop, SCHED_INTERVAL_MS);
@@ -419,22 +363,14 @@ function startEngine() {
   ui.startStop.textContent = 'Stop';
 }
 
-function stopEngine(options = {}) {
+function stopEngine() {
   state.isRunning = false;
   if (state.scheduleTimer) {
     clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
   }
-  if (!options.preserveTestMode) {
-    state.testModeEnabled = false;
-    state.testModeCompleted = false;
-    resetTestLogRuntime();
-    ui.testModeStatus.textContent = 'Mode test inactif.';
-  }
 
-  if (!options.preserveTestMode) {
-    state.expectedHits = [];
-  }
+  state.expectedHits = [];
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active');
@@ -451,21 +387,6 @@ function toggleEngine() {
   startEngine();
 }
 
-
-function startTestMode() {
-  unlockAudio();
-  if (!state.audioCtx || state.isCalibrating) return;
-
-  if (state.isRunning) {
-    stopEngine();
-  }
-
-  state.testModeEnabled = true;
-  state.testModeCompleted = false;
-  ui.testModeStatus.textContent = 'Mode test préparé. Démarrage...';
-  ui.testLog.textContent = 'Mode test actif : démarrage du moteur.';
-  startEngine();
-}
 
 function updateScoreUI() {
   ui.scoreValue.textContent = String(state.score);
@@ -499,6 +420,15 @@ function getClosestExpectedHit(adjustedTapTime) {
   return closestHit;
 }
 
+function getTapPatternIndex(adjustedTapTime) {
+  const subdivDur = getSubdivDur();
+  if (subdivDur <= 0) return -1;
+  const relative = (adjustedTapTime - state.tapMeasureStart) / subdivDur;
+  const index = Math.round(relative);
+  if (index < 0 || index >= PATTERN_LENGTH) return -1;
+  return index;
+}
+
 function recordCalibrationTap(tapTime) {
   const maxDelaySec = CALIBRATION_MAX_DELAY_MS / 1000;
   let closestIndex = -1;
@@ -529,7 +459,7 @@ function applyCalibrationResult() {
   }
 
   const avgDelayMs = state.calibrationDelays.reduce((sum, value) => sum + value, 0) / state.calibrationDelays.length;
-  const clampedLatency = Math.max(INPUT_LATENCY_MIN_MS, Math.min(INPUT_LATENCY_MAX_MS, Math.round(avgDelayMs / 5) * 5));
+  const clampedLatency = Math.max(0, Math.min(INPUT_LATENCY_MAX_MS, Math.round(avgDelayMs / 5) * 5));
 
   state.latencyOffsetMs = clampedLatency;
   ui.latency.value = String(clampedLatency);
@@ -582,25 +512,20 @@ function recordTap() {
 
     if (hit) {
       hit.hit = true;
-      const errorMs = (adjustedTapTime - hit.targetTime) * 1000;
-      appendTestLog(`[HIT] idx=${hit.idx} tapAdj=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${errorMs.toFixed(1)} ms.`);
     } else {
-      const nearest = state.expectedHits.reduce((best, candidate) => {
-        const distance = Math.abs(adjustedTapTime - candidate.targetTime);
-        if (!best || distance < best.distance) {
-          return { candidate, distance };
-        }
-        return best;
-      }, null);
+      const index = getTapPatternIndex(adjustedTapTime);
+      if (index === -1) return;
 
-      const toleranceSec = state.hitToleranceMs / 1000;
-      const nearExistingEvent = nearest && nearest.distance <= (2 * toleranceSec);
-
-      if (nearExistingEvent) {
-        appendTestLog(`[ERREUR GROUPEE] tapAdj=${formatSeconds(adjustedTapTime)} proche idx=${nearest.candidate.idx} (distance=${(nearest.distance * 1000).toFixed(1)} ms). Pénalité absorbée par l'évènement hit/silence voisin.`);
-      } else {
+      if (state.pattern[index] === 0) {
         consumeScorePoint();
-        appendTestLog(`[ERREUR SILENCE] tapAdj=${formatSeconds(adjustedTapTime)} hors fenêtre -> -1 score.`);
+        appendLog(`silence[${index + 1}]`);
+      } else {
+        const expectedNote = state.expectedHits.find((candidate) => candidate.idx === index && !candidate.hit && !candidate.missed);
+        if (!expectedNote) return;
+        expectedNote.missed = true;
+        consumeScorePoint();
+        const errorMs = (adjustedTapTime - expectedNote.targetTime) * 1000;
+        appendLog(`note[${index + 1}] ${formatErrorMs(errorMs)}`);
       }
     }
   } else {
@@ -610,7 +535,6 @@ function recordTap() {
   ui.tapZone.classList.add('pressed');
   setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
 
-  maybeCompleteTestMode('recordTap');
 }
 
 function bindProbabilityControls() {
@@ -634,7 +558,7 @@ ui.bpm.min = String(BPM_MIN);
 ui.bpm.max = String(BPM_MAX);
 ui.bpm.value = String(BPM_DEFAULT);
 ui.bpmValue.textContent = String(BPM_DEFAULT);
-ui.latency.min = String(INPUT_LATENCY_MIN_MS);
+ui.latency.min = String(0);
 ui.latency.max = String(INPUT_LATENCY_MAX_MS);
 ui.latency.value = String(INPUT_LATENCY_DEFAULT_MS);
 ui.latencyValue.textContent = String(INPUT_LATENCY_DEFAULT_MS);
@@ -649,7 +573,8 @@ ui.bpm.addEventListener('input', (e) => {
 });
 
 ui.latency.addEventListener('input', (e) => {
-  state.latencyOffsetMs = Number(e.target.value);
+  state.latencyOffsetMs = Math.max(0, Number(e.target.value));
+  ui.latency.value = String(state.latencyOffsetMs);
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
 });
 
@@ -660,7 +585,6 @@ ui.hitTolerance.addEventListener('input', (e) => {
 
 ui.startStop.addEventListener('click', toggleEngine);
 ui.calibration.addEventListener('click', startCalibration);
-ui.testMode.addEventListener('click', startTestMode);
 
 ui.tapZone.addEventListener('pointerdown', (e) => {
   e.preventDefault();

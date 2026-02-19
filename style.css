@@ -63,6 +63,8 @@ h1 {
 .control-buttons {
   display: flex;
   gap: 0.6rem;
+  margin-top: 0.4rem;
+  align-self: end;
 }
 
 #startStop {
@@ -92,20 +94,6 @@ h1 {
 
 #calibration:hover {
   background: color-mix(in srgb, var(--warn), transparent 70%);
-}
-
-#testMode {
-  border: 1px solid color-mix(in srgb, var(--ok), transparent 50%);
-  background: color-mix(in srgb, var(--ok), transparent 82%);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 0.55rem 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-#testMode:hover {
-  background: color-mix(in srgb, var(--ok), transparent 70%);
 }
 
 label {

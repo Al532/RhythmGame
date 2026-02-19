@@ -1,10 +1,18 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
-const REPS_PER_PATTERN = 4;
+const REPS_PER_PATTERN = 2;
 const BPM_DEFAULT = 60;
 const BPM_MIN = 40;
 const BPM_MAX = 120;
 const INPUT_LATENCY_DEFAULT_MS = 50;
+const INPUT_LATENCY_MIN_MS = -200;
+const INPUT_LATENCY_MAX_MS = 400;
+const HIT_TOLERANCE_DEFAULT_MS = 150;
+const HIT_TOLERANCE_MIN_MS = 50;
+const HIT_TOLERANCE_MAX_MS = 300;
+const CALIBRATION_BPM = 60;
+const CALIBRATION_BEATS = 16;
+const CALIBRATION_MAX_DELAY_MS = 500;
 const SCHED_LOOKAHEAD_MS = 120;
 const SCHED_INTERVAL_MS = 25;
 const MAX_SCORE = 5;
@@ -28,7 +36,8 @@ const DRUM_TUNING = {
 
 const PHASE = {
   LISTEN: 'LISTEN',
-  TAP: 'TAP'
+  TAP: 'TAP',
+  CALIBRATION: 'CALIBRATION'
 };
 
 const ui = {
@@ -40,6 +49,10 @@ const ui = {
   bpmValue: document.getElementById('bpmValue'),
   latency: document.getElementById('latency'),
   latencyValue: document.getElementById('latencyValue'),
+  hitTolerance: document.getElementById('hitTolerance'),
+  hitToleranceValue: document.getElementById('hitToleranceValue'),
+  calibration: document.getElementById('calibration'),
+  calibrationResult: document.getElementById('calibrationResult'),
   startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
   probabilityInputs: [
@@ -59,8 +72,10 @@ const state = {
   audioCtx: null,
   noiseBuffer: null,
   isRunning: false,
+  isCalibrating: false,
   bpm: BPM_DEFAULT,
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
+  hitToleranceMs: HIT_TOLERANCE_DEFAULT_MS,
 
   firstHitWeights: [...FIRST_HIT_WEIGHTS_DEFAULT],
   jumpWeights: [...JUMP_WEIGHTS_DEFAULT],
@@ -76,11 +91,13 @@ const state = {
   nextMeasureTime: 0,
   scheduleTimer: null,
 
-  tapTimes: [],
-  expectedHitSet: new Set(),
-  registeredTapSet: new Set(),
+  expectedHits: [],
   score: MAX_SCORE,
-  lastFlash: null
+  lastFlash: null,
+
+  calibrationTargets: [],
+  calibrationMatched: new Set(),
+  calibrationDelays: []
 };
 
 function weightedChoice(values, weights) {
@@ -198,18 +215,37 @@ function consumeScorePoint() {
   flashScore();
 }
 
-function prepareTapPhase() {
-  state.tapTimes = [];
-  state.registeredTapSet = new Set();
-  state.expectedHitSet = new Set();
+function prepareTapPhase(measureStart) {
+  state.expectedHits = [];
+  const subdivDur = getSubdivDur();
+
   state.pattern.forEach((value, idx) => {
-    if (value === 1 && idx !== 15) {
-      state.expectedHitSet.add(idx);
-    }
+    if (value !== 1 || idx === 15) return;
+    state.expectedHits.push({
+      idx,
+      targetTime: measureStart + (idx * subdivDur),
+      hit: false,
+      missed: false
+    });
   });
 
   state.score = MAX_SCORE;
   updateScoreUI();
+}
+
+function markLiveMisses() {
+  if (!state.audioCtx || state.livePhase !== PHASE.TAP) return;
+
+  const adjustedNow = state.audioCtx.currentTime - (state.latencyOffsetMs / 1000);
+  const toleranceSec = state.hitToleranceMs / 1000;
+
+  state.expectedHits.forEach((hit) => {
+    if (hit.hit || hit.missed) return;
+    if (adjustedNow > hit.targetTime + toleranceSec) {
+      hit.missed = true;
+      consumeScorePoint();
+    }
+  });
 }
 
 function scheduleMeasure(measureStart, phase, repetition) {
@@ -221,7 +257,7 @@ function scheduleMeasure(measureStart, phase, repetition) {
     updateStaticUI();
 
     if (phase === PHASE.TAP) {
-      prepareTapPhase();
+      prepareTapPhase(measureStart);
     }
   }, Math.max(0, (measureStart - state.audioCtx.currentTime) * 1000));
 
@@ -235,17 +271,6 @@ function scheduleMeasure(measureStart, phase, repetition) {
     if (idx === 0 || idx === 8) playKick(eventTime);
     if (idx === 4 || idx === 12) playHiHat(eventTime);
   }
-
-  setTimeout(() => {
-    if (phase === PHASE.TAP) finishTapPhase(measureStart);
-  }, Math.max(0, ((measureStart + getMeasureDur()) - state.audioCtx.currentTime) * 1000 + 20));
-}
-
-function finishTapPhase() {
-  const missed = state.expectedHitSet.size;
-  for (let i = 0; i < missed; i += 1) {
-    consumeScorePoint();
-  }
 }
 
 function flashScore() {
@@ -258,6 +283,8 @@ function flashScore() {
 
 function scheduleLoop() {
   if (!state.isRunning || !state.audioCtx) return;
+
+  markLiveMisses();
 
   const now = state.audioCtx.currentTime;
   while (state.nextMeasureTime < now + (SCHED_LOOKAHEAD_MS / 1000)) {
@@ -283,7 +310,7 @@ function scheduleLoop() {
 }
 
 function startEngine() {
-  if (!state.audioCtx) return;
+  if (!state.audioCtx || state.isCalibrating) return;
 
   state.isRunning = true;
   state.patternNumber = 1;
@@ -292,9 +319,7 @@ function startEngine() {
   state.phase = PHASE.LISTEN;
   state.liveRepetition = 1;
   state.livePhase = PHASE.LISTEN;
-  state.tapTimes = [];
-  state.expectedHitSet = new Set();
-  state.registeredTapSet = new Set();
+  state.expectedHits = [];
   state.score = MAX_SCORE;
   state.currentMeasureStart = state.audioCtx.currentTime + 0.08;
   state.nextMeasureTime = state.currentMeasureStart;
@@ -312,9 +337,7 @@ function stopEngine() {
     clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
   }
-  state.tapTimes = [];
-  state.expectedHitSet = new Set();
-  state.registeredTapSet = new Set();
+  state.expectedHits = [];
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active');
@@ -337,34 +360,120 @@ function updateScoreUI() {
 }
 
 function updateStaticUI() {
-  ui.phaseLabel.textContent = `${state.livePhase} (${state.liveRepetition}/4)`;
+  if (state.isCalibrating) {
+    ui.phaseLabel.textContent = 'CALIBRATION';
+  } else {
+    ui.phaseLabel.textContent = `${state.livePhase} (${state.liveRepetition}/${REPS_PER_PATTERN})`;
+  }
   ui.patternCount.textContent = `#${state.patternNumber}`;
-  ui.tapZone.classList.toggle('active', state.livePhase === PHASE.TAP && state.isRunning);
+  ui.tapZone.classList.toggle('active', (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating));
 }
 
-function getTapIndex(tapTime) {
-  const subdivDur = getSubdivDur();
-  const adjustedTime = tapTime - (state.latencyOffsetMs / 1000);
-  return Math.round((adjustedTime - state.currentMeasureStart) / subdivDur);
+function getClosestExpectedHit(adjustedTapTime) {
+  const toleranceSec = state.hitToleranceMs / 1000;
+  let closestHit = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  state.expectedHits.forEach((hit) => {
+    if (hit.hit || hit.missed) return;
+    const distance = Math.abs(adjustedTapTime - hit.targetTime);
+    if (distance <= toleranceSec && distance < bestDistance) {
+      bestDistance = distance;
+      closestHit = hit;
+    }
+  });
+
+  return closestHit;
+}
+
+function recordCalibrationTap(tapTime) {
+  const maxDelaySec = CALIBRATION_MAX_DELAY_MS / 1000;
+  let closestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  state.calibrationTargets.forEach((targetTime, idx) => {
+    if (state.calibrationMatched.has(idx)) return;
+    const distance = Math.abs(tapTime - targetTime);
+    if (distance <= maxDelaySec && distance < bestDistance) {
+      bestDistance = distance;
+      closestIndex = idx;
+    }
+  });
+
+  if (closestIndex === -1) return;
+
+  state.calibrationMatched.add(closestIndex);
+  const delayMs = (tapTime - state.calibrationTargets[closestIndex]) * 1000;
+  if (Math.abs(delayMs) <= CALIBRATION_MAX_DELAY_MS) {
+    state.calibrationDelays.push(delayMs);
+  }
+}
+
+function applyCalibrationResult() {
+  if (state.calibrationDelays.length === 0) {
+    ui.calibrationResult.textContent = 'Calibration terminée: aucune saisie valide détectée.';
+    return;
+  }
+
+  const avgDelayMs = state.calibrationDelays.reduce((sum, value) => sum + value, 0) / state.calibrationDelays.length;
+  const clampedLatency = Math.max(INPUT_LATENCY_MIN_MS, Math.min(INPUT_LATENCY_MAX_MS, Math.round(avgDelayMs / 5) * 5));
+
+  state.latencyOffsetMs = clampedLatency;
+  ui.latency.value = String(clampedLatency);
+  ui.latencyValue.textContent = String(clampedLatency);
+  ui.calibrationResult.textContent = `Calibration terminée: délai moyen ${avgDelayMs.toFixed(1)} ms (${state.calibrationDelays.length}/${CALIBRATION_BEATS} temps).`;
+}
+
+function startCalibration() {
+  unlockAudio();
+  if (!state.audioCtx || state.isRunning || state.isCalibrating) return;
+
+  state.isCalibrating = true;
+  state.livePhase = PHASE.CALIBRATION;
+  state.calibrationTargets = [];
+  state.calibrationMatched = new Set();
+  state.calibrationDelays = [];
+
+  const beatDur = 60 / CALIBRATION_BPM;
+  const startTime = state.audioCtx.currentTime + 0.2;
+
+  for (let beat = 0; beat < CALIBRATION_BEATS; beat += 1) {
+    const eventTime = startTime + (beat * beatDur);
+    state.calibrationTargets.push(eventTime);
+    playSnare(eventTime);
+    if (beat % 4 === 0) playKick(eventTime);
+  }
+
+  ui.calibrationResult.textContent = 'Calibration en cours... tapez sur chaque temps.';
+  updateStaticUI();
+
+  const calibrationDurationMs = (CALIBRATION_BEATS * beatDur * 1000) + 300;
+  setTimeout(() => {
+    state.isCalibrating = false;
+    state.livePhase = PHASE.LISTEN;
+    applyCalibrationResult();
+    updateStaticUI();
+  }, calibrationDurationMs);
 }
 
 function recordTap() {
-  if (!state.audioCtx || !state.isRunning || state.livePhase !== PHASE.TAP) return;
+  if (!state.audioCtx) return;
 
   const tapTime = state.audioCtx.currentTime;
-  const idx = getTapIndex(tapTime);
-  state.tapTimes.push(tapTime);
 
-  const isInvalid = idx < 0 || idx > 15 || idx === 15 || state.registeredTapSet.has(idx);
-  if (isInvalid) {
-    consumeScorePoint();
-  } else {
-    state.registeredTapSet.add(idx);
-    if (state.expectedHitSet.has(idx)) {
-      state.expectedHitSet.delete(idx);
+  if (state.isCalibrating) {
+    recordCalibrationTap(tapTime);
+  } else if (state.isRunning && state.livePhase === PHASE.TAP) {
+    const adjustedTapTime = tapTime - (state.latencyOffsetMs / 1000);
+    const hit = getClosestExpectedHit(adjustedTapTime);
+
+    if (hit) {
+      hit.hit = true;
     } else {
       consumeScorePoint();
     }
+  } else {
+    return;
   }
 
   ui.tapZone.classList.add('pressed');
@@ -392,8 +501,14 @@ ui.bpm.min = String(BPM_MIN);
 ui.bpm.max = String(BPM_MAX);
 ui.bpm.value = String(BPM_DEFAULT);
 ui.bpmValue.textContent = String(BPM_DEFAULT);
+ui.latency.min = String(INPUT_LATENCY_MIN_MS);
+ui.latency.max = String(INPUT_LATENCY_MAX_MS);
 ui.latency.value = String(INPUT_LATENCY_DEFAULT_MS);
 ui.latencyValue.textContent = String(INPUT_LATENCY_DEFAULT_MS);
+ui.hitTolerance.min = String(HIT_TOLERANCE_MIN_MS);
+ui.hitTolerance.max = String(HIT_TOLERANCE_MAX_MS);
+ui.hitTolerance.value = String(HIT_TOLERANCE_DEFAULT_MS);
+ui.hitToleranceValue.textContent = String(HIT_TOLERANCE_DEFAULT_MS);
 
 ui.bpm.addEventListener('input', (e) => {
   state.bpm = Number(e.target.value);
@@ -405,7 +520,13 @@ ui.latency.addEventListener('input', (e) => {
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
 });
 
+ui.hitTolerance.addEventListener('input', (e) => {
+  state.hitToleranceMs = Number(e.target.value);
+  ui.hitToleranceValue.textContent = String(state.hitToleranceMs);
+});
+
 ui.startStop.addEventListener('click', toggleEngine);
+ui.calibration.addEventListener('click', startCalibration);
 
 ui.tapZone.addEventListener('pointerdown', (e) => {
   e.preventDefault();
@@ -417,7 +538,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code !== 'Space') return;
   e.preventDefault();
 
-  if (!state.isRunning) {
+  if (!state.isRunning && !state.isCalibrating) {
     toggleEngine();
     return;
   }

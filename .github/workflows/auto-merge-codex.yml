@@ -20,14 +20,43 @@ jobs:
             const repo = context.repo.repo;
             const pr_number = context.payload.pull_request.number;
 
-            // Enable auto-merge (squash). Requires repo setting allowing auto-merge.
+            async function getPR() {
+              const { data } = await github.graphql(`
+                query($owner:String!, $repo:String!, $number:Int!) {
+                  repository(owner:$owner, name:$repo) {
+                    pullRequest(number:$number) {
+                      id
+                      mergeStateStatus
+                      mergeable
+                    }
+                  }
+                }`, { owner, repo, number: pr_number });
+              return data.repository.pullRequest;
+            }
+
+            // Retry loop: GitHub can report UNSTABLE/UNKNOWN briefly right after updates
+            let pr;
+            for (let i = 0; i < 12; i++) { // ~60s max
+              pr = await getPR();
+              core.info(`mergeStateStatus=${pr.mergeStateStatus}, mergeable=${pr.mergeable}`);
+              if (pr.mergeStateStatus === "CLEAN" || pr.mergeStateStatus === "HAS_HOOKS") break;
+              if (pr.mergeStateStatus === "DIRTY") {
+                core.setFailed("PR has merge conflicts (DIRTY).");
+                return;
+              }
+              await new Promise(r => setTimeout(r, 5000));
+            }
+
+            if (!(pr.mergeStateStatus === "CLEAN" || pr.mergeStateStatus === "HAS_HOOKS")) {
+              core.setFailed(`PR still not stable: ${pr.mergeStateStatus}`);
+              return;
+            }
+
             await github.graphql(`
               mutation($prId: ID!) {
                 enablePullRequestAutoMerge(input: {pullRequestId: $prId, mergeMethod: SQUASH}) {
                   pullRequest { number, autoMergeRequest { enabledAt } }
                 }
-              }`,
-              { prId: context.payload.pull_request.node_id }
-            );
+              }`, { prId: pr.id });
 
             core.info(`Enabled auto-merge for PR #${pr_number}`);

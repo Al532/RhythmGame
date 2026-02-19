@@ -134,6 +134,8 @@ const state = {
   displayedScore: MAX_SCORE,
   scoreRecoveryFrame: null,
   scoreStepTimer: null,
+  listenSaturationStartTimer: null,
+  listenSaturationEndTimer: null,
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
@@ -446,6 +448,40 @@ function markLiveMisses() {
 }
 
 
+function clearListenSaturationTimers() {
+  if (state.listenSaturationStartTimer !== null) {
+    clearTimeout(state.listenSaturationStartTimer);
+    state.listenSaturationStartTimer = null;
+  }
+
+  if (state.listenSaturationEndTimer !== null) {
+    clearTimeout(state.listenSaturationEndTimer);
+    state.listenSaturationEndTimer = null;
+  }
+}
+
+function scheduleListenSaturationRelease(measureStart) {
+  clearListenSaturationTimers();
+
+  const subdivDurMs = getSubdivDur() * 1000;
+  const releaseDurationMs = Math.max(0, 2 * subdivDurMs);
+  ui.tapZone.style.setProperty('--tap-sat-transition-ms', `${Math.round(releaseDurationMs)}ms`);
+
+  const releaseStartMs = Math.max(0, ((measureStart + (14 * getSubdivDur())) - state.audioCtx.currentTime) * 1000);
+  const releaseEndMs = releaseStartMs + releaseDurationMs;
+
+  state.listenSaturationStartTimer = setTimeout(() => {
+    ui.tapZone.classList.add('listen-release');
+    state.listenSaturationStartTimer = null;
+  }, releaseStartMs);
+
+  state.listenSaturationEndTimer = setTimeout(() => {
+    ui.tapZone.classList.remove('listen-muted', 'listen-release');
+    ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
+    state.listenSaturationEndTimer = null;
+  }, releaseEndMs);
+}
+
 function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
   const subdivDur = getSubdivDur();
   const phaseStartTime = phase === PHASE.TAP ? measureStart - subdivDur : measureStart;
@@ -456,9 +492,16 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     updateStaticUI();
 
     if (phase === PHASE.TAP) {
+      clearListenSaturationTimers();
+      ui.tapZone.classList.remove('listen-muted', 'listen-release');
+      ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       stopScoreRecoveryAnimation();
       prepareTapPhase(measureStart, patternForMeasure);
     } else if (phase === PHASE.LISTEN) {
+      ui.tapZone.classList.add('listen-muted');
+      ui.tapZone.classList.remove('listen-release');
+      ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
+      scheduleListenSaturationRelease(measureStart);
       startListenScoreRecovery(getMeasureDur() * 1000);
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
@@ -634,11 +677,13 @@ function stopEngine() {
 
   stopScoreRecoveryAnimation();
   stopScoreStepAnimation();
+  clearListenSaturationTimers();
   state.expectedHits = [];
   state.tapPattern = null;
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
-  ui.tapZone.classList.remove('active');
+  ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
+  ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
   ui.startStop.textContent = 'Start';
   updateStaticUI();
 }

@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.17';
+const APP_VERSION = window.APP_VERSION || '1.0.18';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -22,7 +22,9 @@ const CALIBRATION_BEATS = 16;
 const CALIBRATION_MAX_DELAY_MS = 500;
 const SCHED_LOOKAHEAD_MS = 120;
 const SCHED_INTERVAL_MS = 25;
-const MAX_SCORE = 20;
+const MAX_SCORE_DEFAULT = 10;
+const MAX_SCORE_MIN = 1;
+const MAX_SCORE_MAX = 10;
 const SCORE_RECOVERY_PER_SECOND_DEFAULT = 1;
 const SCORE_RECOVERY_PER_SECOND_MIN = 0;
 const SCORE_RECOVERY_PER_SECOND_MAX = 1;
@@ -70,7 +72,8 @@ const STORAGE_KEYS = {
   latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
   hitTolerance: 'rhythmTrainer.hitTolerance',
   hitWindowMs: 'rhythmTrainer.hitWindowMs',
-  scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond'
+  scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond',
+  maxScore: 'rhythmTrainer.maxScore'
 };
 
 function getInterpolationFactor(level = LEVEL_DEFAULT) {
@@ -155,6 +158,7 @@ const ui = {
   hitWindowDisplay: document.getElementById('hitWindowDisplay'),
   scoreRecoveryPerSecond: document.getElementById('scoreRecoveryPerSecond'),
   scoreRecoveryPerSecondValue: document.getElementById('scoreRecoveryPerSecondValue'),
+  maxScore: document.getElementById('maxScore'),
   clearCache: document.getElementById('clearCache'),
   calibration: document.getElementById('calibration'),
   appVersion: document.getElementById('appVersion'),
@@ -218,9 +222,10 @@ const state = {
 
   expectedHits: [],
   expectedIndex: 0,
-  score: MAX_SCORE,
-  displayedScore: MAX_SCORE,
-  displayedScoreTarget: MAX_SCORE,
+  maxScore: MAX_SCORE_DEFAULT,
+  score: MAX_SCORE_DEFAULT,
+  displayedScore: MAX_SCORE_DEFAULT,
+  displayedScoreTarget: MAX_SCORE_DEFAULT,
   scoreRecoveryFrame: null,
   scoreStepTimer: null,
   scoreRegenTimer: null,
@@ -236,7 +241,8 @@ const state = {
   tapPattern: null,
   isIntroduction: false,
   completedPatternsInLevel: 0,
-  startLevel: LEVEL_DEFAULT
+  startLevel: LEVEL_DEFAULT,
+  pendingBpmDisplayUpdate: false
 };
 
 function weightedChoice(values, weights) {
@@ -298,7 +304,7 @@ function updateHitWindowUI() {
   ui.hitWindowDisplay.textContent = String(state.hitWindowMs);
 }
 
-function syncInterpolatedSettings() {
+function syncInterpolatedSettings({ updateBpmDisplay = true } = {}) {
   const factor = getInterpolationFactor(state.level);
   state.bpm = interpolateRounded(state.bpmLevel1, state.bpmLevel10, factor);
   state.firstHitWeights = state.firstHitWeightsLevel1.map((weight, index) => {
@@ -308,7 +314,10 @@ function syncInterpolatedSettings() {
     return interpolateLinear(weight, state.jumpWeightsLevel10[index], factor);
   });
 
-  ui.bpmValue.textContent = String(state.bpm);
+  if (updateBpmDisplay) {
+    ui.bpmValue.textContent = String(state.bpm);
+    state.pendingBpmDisplayUpdate = false;
+  }
 }
 
 function applyPersistedSettings() {
@@ -367,6 +376,11 @@ function applyPersistedSettings() {
       SCORE_RECOVERY_PER_SECOND_MIN,
       SCORE_RECOVERY_PER_SECOND_MAX
     );
+  }
+
+  const storedMaxScore = loadStoredNumber(STORAGE_KEYS.maxScore);
+  if (storedMaxScore !== null) {
+    state.maxScore = clamp(Math.round(storedMaxScore), MAX_SCORE_MIN, MAX_SCORE_MAX);
   }
 
   syncInterpolatedSettings();
@@ -514,7 +528,7 @@ function showResultScreen(title, text) {
 }
 
 function setScore(nextScore, reason) {
-  const clampedScore = clamp(nextScore, 0, MAX_SCORE);
+  const clampedScore = clamp(nextScore, 0, state.maxScore);
   if (clampedScore === state.score) return;
   state.score = clampedScore;
   animateDisplayedScoreTo(state.score);
@@ -653,6 +667,11 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     state.isIntroduction = false;
     state.livePhase = phase;
     state.liveRepetition = repetition;
+    if (state.pendingBpmDisplayUpdate && phase === PHASE.LISTEN && repetition === 1) {
+      ui.bpmValue.textContent = String(state.bpm);
+      state.pendingBpmDisplayUpdate = false;
+    }
+
     updateStaticUI();
 
     if (phase === PHASE.TAP) {
@@ -675,7 +694,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
     if (patternForMeasure[idx] === 1) {
       playSnare(eventTime);
 
-      const feedbackDelayMs = Math.max(0, (eventTime - state.audioCtx.currentTime) * 1000);
+      const feedbackDelayMs = Math.max(0, ((eventTime - state.audioCtx.currentTime) * 1000) + state.latencyOffsetMs);
       setTimeout(() => {
         if (!state.isRunning) return;
         if (state.livePhase === PHASE.LISTEN) {
@@ -731,7 +750,7 @@ function stopScoreStepAnimation() {
 }
 
 function animateDisplayedScoreTo(targetScore) {
-  const clampedTarget = clamp(targetScore, 0, MAX_SCORE);
+  const clampedTarget = clamp(targetScore, 0, state.maxScore);
   state.displayedScoreTarget = clampedTarget;
 
   if (Math.abs(state.displayedScore - state.displayedScoreTarget) < 0.001) {
@@ -782,7 +801,7 @@ function startScoreRegeneration() {
   const regenStepSeconds = SCORE_REGEN_INTERVAL_MS / 1000;
   state.scoreRegenTimer = setInterval(() => {
     if (!state.isRunning) return;
-    if (state.score >= MAX_SCORE) return;
+    if (state.score >= state.maxScore) return;
     const recoveredScore = state.scoreRecoveryPerSecond * regenStepSeconds;
     if (recoveredScore <= 0) return;
     setScore(state.score + recoveredScore, 'score regeneration');
@@ -796,6 +815,7 @@ function scheduleLoop() {
 
   const now = state.audioCtx.currentTime;
   while (state.nextMeasureTime < now + (SCHED_LOOKAHEAD_MS / 1000)) {
+    const measureDur = getMeasureDur();
     state.currentMeasureStart = state.nextMeasureTime;
 
     const patternForMeasure = [...state.pattern];
@@ -819,14 +839,15 @@ function scheduleLoop() {
             return;
           }
           state.level += 1;
-          syncInterpolatedSettings();
+          syncInterpolatedSettings({ updateBpmDisplay: false });
+          state.pendingBpmDisplayUpdate = true;
         }
 
         state.pattern = generatePattern();
       }
     }
 
-    state.nextMeasureTime += getMeasureDur();
+    state.nextMeasureTime += measureDur;
     updateStaticUI();
   }
 }
@@ -846,9 +867,9 @@ function startEngine() {
   state.livePhase = PHASE.LISTEN;
   state.expectedHits = [];
   state.tapPattern = null;
-  state.score = MAX_SCORE;
-  state.displayedScore = MAX_SCORE;
-  state.displayedScoreTarget = MAX_SCORE;
+  state.score = state.maxScore;
+  state.displayedScore = state.maxScore;
+  state.displayedScoreTarget = state.maxScore;
   state.isIntroduction = true;
 
   // Introduction : phase d'entrée uniquement avec la hi-hat avant le début du jeu.
@@ -896,7 +917,7 @@ function stopEngine() {
 
 
 function updateScoreUI() {
-  const ratio = clamp(state.displayedScore / MAX_SCORE, 0, 1);
+  const ratio = clamp(state.displayedScore / state.maxScore, 0, 1);
   const hue = Math.round(ratio * 120);
   ui.tapZone.style.setProperty('--fill-height', `${Math.round(ratio * 100)}%`);
   ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);
@@ -1079,6 +1100,7 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.hitTolerance);
     window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
     window.localStorage.removeItem(STORAGE_KEYS.scoreRecoveryPerSecond);
+    window.localStorage.removeItem(STORAGE_KEYS.maxScore);
   } catch (_error) {
     // Ignore storage errors
   }
@@ -1096,6 +1118,10 @@ function clearLocalCache() {
   state.hitTolerance = HIT_TOLERANCE_DEFAULT;
   state.hitWindowMs = HIT_WINDOW_DEFAULT_MS;
   state.scoreRecoveryPerSecond = SCORE_RECOVERY_PER_SECOND_DEFAULT;
+  state.maxScore = MAX_SCORE_DEFAULT;
+  state.score = state.maxScore;
+  state.displayedScore = state.maxScore;
+  state.displayedScoreTarget = state.maxScore;
 
   ui.startLevel.value = String(state.startLevel);
   ui.startLevelValue.textContent = String(state.startLevel);
@@ -1118,6 +1144,7 @@ function clearLocalCache() {
   ui.hitTolerance.value = String(state.hitTolerance);
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
   ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
+  ui.maxScore.value = String(state.maxScore);
   updateHitWindowUI();
   updateHitToleranceUI();
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
@@ -1188,6 +1215,7 @@ ui.scoreRecoveryPerSecond.min = String(SCORE_RECOVERY_PER_SECOND_MIN);
 ui.scoreRecoveryPerSecond.max = String(SCORE_RECOVERY_PER_SECOND_MAX);
 ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
 ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
+ui.maxScore.value = String(state.maxScore);
 
 ui.startLevel.addEventListener('input', (e) => {
   state.startLevel = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
@@ -1240,6 +1268,18 @@ ui.scoreRecoveryPerSecond.addEventListener('input', (e) => {
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
   ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
   saveSetting(STORAGE_KEYS.scoreRecoveryPerSecond, state.scoreRecoveryPerSecond);
+});
+
+ui.maxScore.addEventListener('input', (e) => {
+  const digits = String(e.target.value).replace(/\D+/g, '');
+  const parsed = digits === '' ? state.maxScore : Number(digits);
+  state.maxScore = clamp(Math.round(parsed), MAX_SCORE_MIN, MAX_SCORE_MAX);
+  ui.maxScore.value = String(state.maxScore);
+  state.score = clamp(state.score, 0, state.maxScore);
+  state.displayedScore = clamp(state.displayedScore, 0, state.maxScore);
+  state.displayedScoreTarget = clamp(state.displayedScoreTarget, 0, state.maxScore);
+  saveSetting(STORAGE_KEYS.maxScore, state.maxScore);
+  updateScoreUI();
 });
 
 ui.startGame.addEventListener('click', () => {

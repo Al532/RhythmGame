@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.0.10';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -50,7 +50,7 @@ const DRUM_TUNING = {
 
 const START_COUNTIN_BEATS = 4;
 const PATTERNS_PER_LEVEL = 2;
-const SCORE_REGEN_INTERVAL_MS = 1000;
+const SCORE_REGEN_INTERVAL_MS = 50;
 
 const PHASE = {
   LISTEN: 'LISTEN',
@@ -320,11 +320,8 @@ function syncInterpolatedSettings() {
 }
 
 function applyPersistedSettings() {
-  const storedLevel = loadStoredNumber(STORAGE_KEYS.level);
-  if (storedLevel !== null) {
-    state.startLevel = clamp(Math.round(storedLevel), LEVEL_MIN, LEVEL_MAX);
-    state.level = state.startLevel;
-  }
+  state.startLevel = LEVEL_DEFAULT;
+  state.level = LEVEL_DEFAULT;
 
   const storedBpmLevel1 = loadStoredNumber(STORAGE_KEYS.bpmLevel1);
   if (storedBpmLevel1 !== null) {
@@ -528,7 +525,6 @@ function consumeScorePoint() {
   if (state.score <= 0) return;
   state.score = Math.max(0, state.score - 1);
   animateDisplayedScoreTo(state.score);
-  flashScore();
 
   if (state.score <= 0) {
     stopEngine();
@@ -707,13 +703,6 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
   }
 }
 
-function flashScore() {
-  ui.tapZone.classList.remove('loss-flash');
-  // Force restart of the short loss animation on consecutive misses.
-  void ui.tapZone.offsetWidth;
-  ui.tapZone.classList.add('loss-flash');
-}
-
 function triggerShortVibration(durationMs = 10) {
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
   navigator.vibrate(Math.max(1, Math.round(durationMs)));
@@ -783,11 +772,14 @@ function stopScoreRegeneration() {
 
 function startScoreRegeneration() {
   stopScoreRegeneration();
+  const regenStepSeconds = SCORE_REGEN_INTERVAL_MS / 1000;
   state.scoreRegenTimer = setInterval(() => {
     if (!state.isRunning) return;
+    if (state.livePhase !== PHASE.TAP) return;
     if (state.score >= MAX_SCORE) return;
-    const nextScore = clamp(state.score + state.scoreRecoveryPerSecond, 0, MAX_SCORE);
-    state.score = nextScore;
+    const recoveredScore = state.scoreRecoveryPerSecond * regenStepSeconds;
+    if (recoveredScore <= 0) return;
+    state.score = clamp(state.score + recoveredScore, 0, MAX_SCORE);
     animateDisplayedScoreTo(state.score);
   }, SCORE_REGEN_INTERVAL_MS);
 }
@@ -1261,10 +1253,6 @@ ui.backToMenu.addEventListener('click', () => {
 
 ui.calibration.addEventListener('click', startCalibration);
 ui.clearCache.addEventListener('click', clearLocalCache);
-ui.tapZone.addEventListener('animationend', () => {
-  ui.tapZone.classList.remove('loss-flash');
-});
-
 ui.tapZone.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   unlockAudio();

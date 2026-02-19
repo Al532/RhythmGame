@@ -164,6 +164,8 @@ summary {
 .tap-zone {
   --score-color: var(--ok);
   --fill-height: 100%;
+  --tap-saturation: 1;
+  --tap-sat-transition-ms: 0ms;
   position: relative;
   overflow: hidden;
   width: min(280px, 65vw);
@@ -178,16 +180,37 @@ summary {
   font-size: 1.35rem;
   letter-spacing: 0.03em;
   isolation: isolate;
-  transition: transform 100ms ease, background 140ms ease, border-color 140ms ease;
+  filter: saturate(var(--tap-saturation));
+  transition:
+    transform 100ms ease,
+    background 140ms ease,
+    border-color 140ms ease,
+    filter var(--tap-sat-transition-ms) linear;
 }
 
+
+.tap-zone span {
+  transition: opacity 120ms ease;
+}
+
+.tap-zone.listen-muted {
+  --tap-saturation: 0.2;
+  --tap-sat-transition-ms: 0ms;
+}
+
+.tap-zone.listen-muted span {
+  opacity: 0;
+}
+
+.tap-zone.listen-release {
+  --tap-saturation: 1;
+}
 .tap-zone::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: auto 0 0;
   height: var(--fill-height);
-  margin-top: auto;
-  border-radius: inherit;
+  border-radius: 0;
   background: var(--score-color);
   z-index: -1;
 }

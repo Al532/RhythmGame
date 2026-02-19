@@ -101,6 +101,10 @@ label {
   gap: 0.3rem;
 }
 
+#hitToleranceDisplay {
+  white-space: nowrap;
+}
+
 .calibration-result {
   margin: 0;
   font-size: 0.92rem;

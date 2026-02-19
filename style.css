@@ -94,6 +94,20 @@ h1 {
   background: color-mix(in srgb, var(--warn), transparent 70%);
 }
 
+#testMode {
+  border: 1px solid color-mix(in srgb, var(--ok), transparent 50%);
+  background: color-mix(in srgb, var(--ok), transparent 82%);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#testMode:hover {
+  background: color-mix(in srgb, var(--ok), transparent 70%);
+}
+
 label {
   display: grid;
   gap: 0.3rem;
@@ -103,6 +117,30 @@ label {
   margin: 0;
   font-size: 0.92rem;
   opacity: 0.9;
+}
+
+.test-log-panel {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.test-log-panel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.test-log {
+  margin: 0;
+  min-height: 140px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #121734;
+  border: 1px solid #394079;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
 }
 
 .probabilities summary {

@@ -53,6 +53,9 @@ const ui = {
   hitToleranceValue: document.getElementById('hitToleranceValue'),
   calibration: document.getElementById('calibration'),
   calibrationResult: document.getElementById('calibrationResult'),
+  testMode: document.getElementById('testMode'),
+  testModeStatus: document.getElementById('testModeStatus'),
+  testLog: document.getElementById('testLog'),
   startStop: document.getElementById('startStop'),
   tapZone: document.getElementById('tapZone'),
   probabilityInputs: [
@@ -97,7 +100,12 @@ const state = {
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
-  calibrationDelays: []
+  calibrationDelays: [],
+
+  testModeEnabled: false,
+  testModeCompleted: false,
+  testModePhaseStart: null,
+  testLogEvents: []
 };
 
 function weightedChoice(values, weights) {
@@ -208,6 +216,59 @@ function playHiHat(time) {
   src.stop(time + DRUM_TUNING.hihat.decay + 0.01);
 }
 
+
+function formatSeconds(seconds) {
+  if (seconds == null || !Number.isFinite(seconds)) return 'n/a';
+  return `${seconds.toFixed(3)}s`;
+}
+
+function appendTestLog(message) {
+  if (!state.testModeEnabled) return;
+  state.testLogEvents.push(message);
+}
+
+function resetTestLogRuntime() {
+  state.testLogEvents = [];
+  state.testModePhaseStart = null;
+}
+
+function renderTestLog() {
+  if (!state.testModeEnabled || !state.testModeCompleted) return;
+
+  const total = state.expectedHits.length;
+  const hits = state.expectedHits.filter((event) => event.hit).length;
+  const misses = state.expectedHits.filter((event) => event.missed).length;
+
+  const report = [
+    '=== MODE TEST : RAPPORT PHASE TAP UNIQUE ===',
+    `BPM=${state.bpm} | Tolérance=${state.hitToleranceMs} ms | Latence appliquée=${state.latencyOffsetMs} ms`,
+    `Score final: ${state.score}/${MAX_SCORE}`,
+    `Synthèse: ${hits} hit(s), ${misses} miss(es), ${total} attendu(s)`,
+    '',
+    '--- Détails ---',
+    ...state.testLogEvents
+  ];
+
+  ui.testLog.textContent = report.join('\n');
+  ui.testModeStatus.textContent = 'Mode test terminé. Rapport détaillé affiché ci-dessous.';
+}
+
+function maybeCompleteTestMode(source) {
+  if (!state.testModeEnabled || state.testModeCompleted || !state.audioCtx || state.livePhase !== PHASE.TAP) return;
+
+  const toleranceSec = state.hitToleranceMs / 1000;
+  const lastTarget = state.expectedHits.reduce((max, hit) => Math.max(max, hit.targetTime), Number.NEGATIVE_INFINITY);
+  if (!Number.isFinite(lastTarget)) return;
+
+  const adjustedNow = state.audioCtx.currentTime - (state.latencyOffsetMs / 1000);
+  if (adjustedNow <= (lastTarget + toleranceSec)) return;
+
+  state.testModeCompleted = true;
+  appendTestLog(`[FIN] Test clos via ${source} à tAdj=${formatSeconds(adjustedNow)}.`);
+  stopEngine({ preserveTestMode: true });
+  renderTestLog();
+}
+
 function consumeScorePoint() {
   if (state.score <= 0) return;
   state.score -= 1;
@@ -219,14 +280,23 @@ function prepareTapPhase(measureStart) {
   state.expectedHits = [];
   const subdivDur = getSubdivDur();
 
+  if (state.testModeEnabled) {
+    resetTestLogRuntime();
+    state.testModePhaseStart = measureStart;
+    appendTestLog(`[PHASE] TAP démarrée à ${formatSeconds(measureStart)}.`);
+  }
+
   state.pattern.forEach((value, idx) => {
     if (value !== 1 || idx === 15) return;
+    const targetTime = measureStart + (idx * subdivDur);
     state.expectedHits.push({
       idx,
-      targetTime: measureStart + (idx * subdivDur),
+      targetTime,
       hit: false,
       missed: false
     });
+
+    appendTestLog(`[CIBLE] idx=${idx} target=${formatSeconds(targetTime)}.`);
   });
 
   state.score = MAX_SCORE;
@@ -244,8 +314,11 @@ function markLiveMisses() {
     if (adjustedNow > hit.targetTime + toleranceSec) {
       hit.missed = true;
       consumeScorePoint();
+      appendTestLog(`[MISS] idx=${hit.idx} adjustedNow=${formatSeconds(adjustedNow)} target=${formatSeconds(hit.targetTime)}.`);
     }
   });
+
+  maybeCompleteTestMode('markLiveMisses');
 }
 
 function scheduleMeasure(measureStart, phase, repetition) {
@@ -295,6 +368,14 @@ function scheduleLoop() {
     if (state.phase === PHASE.LISTEN) {
       state.phase = PHASE.TAP;
     } else {
+      if (state.testModeEnabled) {
+        appendTestLog('[INFO] Phase TAP planifiée; aucune phase supplémentaire en mode test.');
+        state.phase = PHASE.LISTEN;
+        state.nextMeasureTime += getMeasureDur();
+        updateStaticUI();
+        continue;
+      }
+
       state.phase = PHASE.LISTEN;
       state.repetition += 1;
       if (state.repetition > REPS_PER_PATTERN) {
@@ -324,6 +405,13 @@ function startEngine() {
   state.currentMeasureStart = state.audioCtx.currentTime + 0.08;
   state.nextMeasureTime = state.currentMeasureStart;
 
+  if (state.testModeEnabled) {
+    state.testModeCompleted = false;
+    resetTestLogRuntime();
+    ui.testLog.textContent = 'Mode test actif : en attente de la phase TAP...';
+    ui.testModeStatus.textContent = 'Mode test actif : une seule phase TAP sera évaluée.';
+  }
+
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);
   state.scheduleTimer = setInterval(scheduleLoop, SCHED_INTERVAL_MS);
   updateScoreUI();
@@ -331,13 +419,22 @@ function startEngine() {
   ui.startStop.textContent = 'Stop';
 }
 
-function stopEngine() {
+function stopEngine(options = {}) {
   state.isRunning = false;
   if (state.scheduleTimer) {
     clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
   }
-  state.expectedHits = [];
+  if (!options.preserveTestMode) {
+    state.testModeEnabled = false;
+    state.testModeCompleted = false;
+    resetTestLogRuntime();
+    ui.testModeStatus.textContent = 'Mode test inactif.';
+  }
+
+  if (!options.preserveTestMode) {
+    state.expectedHits = [];
+  }
   state.livePhase = PHASE.LISTEN;
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active');
@@ -351,6 +448,22 @@ function toggleEngine() {
     stopEngine();
     return;
   }
+  startEngine();
+}
+
+
+function startTestMode() {
+  unlockAudio();
+  if (!state.audioCtx || state.isCalibrating) return;
+
+  if (state.isRunning) {
+    stopEngine();
+  }
+
+  state.testModeEnabled = true;
+  state.testModeCompleted = false;
+  ui.testModeStatus.textContent = 'Mode test préparé. Démarrage...';
+  ui.testLog.textContent = 'Mode test actif : démarrage du moteur.';
   startEngine();
 }
 
@@ -469,8 +582,26 @@ function recordTap() {
 
     if (hit) {
       hit.hit = true;
+      const errorMs = (adjustedTapTime - hit.targetTime) * 1000;
+      appendTestLog(`[HIT] idx=${hit.idx} tapAdj=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${errorMs.toFixed(1)} ms.`);
     } else {
-      consumeScorePoint();
+      const nearest = state.expectedHits.reduce((best, candidate) => {
+        const distance = Math.abs(adjustedTapTime - candidate.targetTime);
+        if (!best || distance < best.distance) {
+          return { candidate, distance };
+        }
+        return best;
+      }, null);
+
+      const toleranceSec = state.hitToleranceMs / 1000;
+      const nearExistingEvent = nearest && nearest.distance <= (2 * toleranceSec);
+
+      if (nearExistingEvent) {
+        appendTestLog(`[ERREUR GROUPEE] tapAdj=${formatSeconds(adjustedTapTime)} proche idx=${nearest.candidate.idx} (distance=${(nearest.distance * 1000).toFixed(1)} ms). Pénalité absorbée par l'évènement hit/silence voisin.`);
+      } else {
+        consumeScorePoint();
+        appendTestLog(`[ERREUR SILENCE] tapAdj=${formatSeconds(adjustedTapTime)} hors fenêtre -> -1 score.`);
+      }
     }
   } else {
     return;
@@ -478,6 +609,8 @@ function recordTap() {
 
   ui.tapZone.classList.add('pressed');
   setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
+
+  maybeCompleteTestMode('recordTap');
 }
 
 function bindProbabilityControls() {
@@ -527,6 +660,7 @@ ui.hitTolerance.addEventListener('input', (e) => {
 
 ui.startStop.addEventListener('click', toggleEngine);
 ui.calibration.addEventListener('click', startCalibration);
+ui.testMode.addEventListener('click', startTestMode);
 
 ui.tapZone.addEventListener('pointerdown', (e) => {
   e.preventDefault();

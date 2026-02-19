@@ -429,7 +429,8 @@ function markLiveMisses() {
   if (!state.audioCtx || state.livePhase !== PHASE.TAP) return;
 
   const adjustedNow = state.audioCtx.currentTime - (state.latencyOffsetMs / 1000);
-  const missDelaySec = getSubdivDur();
+  // Keep auto-miss timing aligned with the user-configurable hit window.
+  const missDelaySec = state.hitWindowMs / 1000;
 
   state.expectedHits.forEach((hit) => {
     if (isHitJudged(hit)) return;

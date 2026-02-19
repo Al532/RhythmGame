@@ -29,12 +29,6 @@
       </section>
 
       <section class="controls card">
-        <div class="control-buttons">
-          <button id="startStop" type="button">Start</button>
-          <button id="calibration" type="button">Calibration</button>
-          <button id="testMode" type="button">Mode test (1 phase)</button>
-        </div>
-
         <label>
           BPM: <span id="bpmValue">60</span>
           <input id="bpm" type="range" min="40" max="120" value="60" />
@@ -51,12 +45,24 @@
         </label>
 
         <p id="calibrationResult" class="calibration-result">Calibration non lancée.</p>
-        <p id="testModeStatus" class="calibration-result">Mode test inactif.</p>
+
+        <div class="control-buttons">
+          <button id="startStop" type="button">Start</button>
+          <button id="calibration" type="button">Calibration</button>
+        </div>
       </section>
 
+      <section class="score card">
+        <div class="score-bar-wrap" aria-label="score bar 0 to 5">
+          <div id="scoreBar" class="score-bar"></div>
+        </div>
+      </section>
+
+      <button id="tapZone" class="tap-zone" aria-label="Tap input zone">Tap Here During TAP Phase</button>
+
       <section class="card test-log-panel">
-        <h2>Log mode test</h2>
-        <pre id="testLog" class="test-log">Lancez le mode test pour afficher les détails de timing et scoring.</pre>
+        <h2>Log</h2>
+        <pre id="testLog" class="test-log">Le log des erreurs s'affichera ici pendant la phase TAP.</pre>
       </section>
 
       <details class="probabilities card" id="probabilitiesPanel">
@@ -106,14 +112,6 @@
           </label>
         </fieldset>
       </details>
-
-      <section class="score card">
-        <div class="score-bar-wrap" aria-label="score bar 0 to 5">
-          <div id="scoreBar" class="score-bar"></div>
-        </div>
-      </section>
-
-      <button id="tapZone" class="tap-zone" aria-label="Tap input zone">Tap Here During TAP Phase</button>
     </main>
 
     <script src="main.js"></script>

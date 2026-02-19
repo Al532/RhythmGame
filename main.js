@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.11';
+const APP_VERSION = '1.0.12';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -825,7 +825,7 @@ function scheduleLoop() {
 }
 
 function startEngine() {
-  if (!state.audioCtx || state.isCalibrating) return;
+  if (!state.audioCtx || state.isCalibrating || state.isRunning) return;
 
   state.isRunning = true;
   state.level = state.startLevel;
@@ -1274,4 +1274,3 @@ updateStaticUI();
 updateScoreUI();
 showStartScreen();
 console.info(`RhythmGame version ${APP_VERSION}`);
-

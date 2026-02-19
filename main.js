@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.16';
+const APP_VERSION = window.APP_VERSION || '1.0.17';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -220,6 +220,7 @@ const state = {
   expectedIndex: 0,
   score: MAX_SCORE,
   displayedScore: MAX_SCORE,
+  displayedScoreTarget: MAX_SCORE,
   scoreRecoveryFrame: null,
   scoreStepTimer: null,
   scoreRegenTimer: null,
@@ -731,27 +732,42 @@ function stopScoreStepAnimation() {
 
 function animateDisplayedScoreTo(targetScore) {
   const clampedTarget = clamp(targetScore, 0, MAX_SCORE);
-  stopScoreStepAnimation();
+  state.displayedScoreTarget = clampedTarget;
 
-  if (Math.abs(state.displayedScore - clampedTarget) < 0.001) {
-    state.displayedScore = clampedTarget;
+  if (Math.abs(state.displayedScore - state.displayedScoreTarget) < 0.001) {
+    state.displayedScore = state.displayedScoreTarget;
     updateScoreUI();
     return;
   }
 
-  const stepSize = 0.2;
-  state.scoreStepTimer = setInterval(() => {
-    const distance = clampedTarget - state.displayedScore;
-    if (Math.abs(distance) <= stepSize) {
-      state.displayedScore = clampedTarget;
-      stopScoreStepAnimation();
+  if (state.scoreRecoveryFrame !== null) return;
+
+  let lastTimestamp = null;
+  const animationSpeedPerSecond = 4;
+
+  const step = (timestamp) => {
+    if (lastTimestamp === null) {
+      lastTimestamp = timestamp;
+    }
+
+    const deltaSeconds = Math.max(0, (timestamp - lastTimestamp) / 1000);
+    lastTimestamp = timestamp;
+    const maxStep = animationSpeedPerSecond * deltaSeconds;
+    const distance = state.displayedScoreTarget - state.displayedScore;
+
+    if (Math.abs(distance) <= Math.max(maxStep, 0.001)) {
+      state.displayedScore = state.displayedScoreTarget;
       updateScoreUI();
+      state.scoreRecoveryFrame = null;
       return;
     }
 
-    state.displayedScore += Math.sign(distance) * stepSize;
+    state.displayedScore += Math.sign(distance) * maxStep;
     updateScoreUI();
-  }, 50);
+    state.scoreRecoveryFrame = requestAnimationFrame(step);
+  };
+
+  state.scoreRecoveryFrame = requestAnimationFrame(step);
 }
 
 function stopScoreRegeneration() {
@@ -832,6 +848,7 @@ function startEngine() {
   state.tapPattern = null;
   state.score = MAX_SCORE;
   state.displayedScore = MAX_SCORE;
+  state.displayedScoreTarget = MAX_SCORE;
   state.isIntroduction = true;
 
   // Introduction : phase d'entrée uniquement avec la hi-hat avant le début du jeu.

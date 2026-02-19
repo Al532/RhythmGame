@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
-    <link rel="stylesheet" href="style.css" />
+    <script>
+      // Bump this value on each release to invalidate browser caches.
+      // Keep any future Service Worker cache names aligned (e.g. app-cache-<version>).
+      window.APP_VERSION = '20260219';
+
+      const stylesLink = document.createElement('link');
+      stylesLink.rel = 'stylesheet';
+      stylesLink.href = `style.css?v=${window.APP_VERSION}`;
+      document.head.appendChild(stylesLink);
+    </script>
   </head>
   <body>
     <main class="app">
@@ -97,6 +106,10 @@
       </details>
     </main>
 
-    <script src="main.js"></script>
+    <script>
+      const appScript = document.createElement('script');
+      appScript.src = `main.js?v=${window.APP_VERSION}`;
+      document.body.appendChild(appScript);
+    </script>
   </body>
 </html>

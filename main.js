@@ -639,14 +639,15 @@ function clearListenSaturationTimers() {
   }
 }
 
-function scheduleListenSaturationRelease(measureStart) {
+function scheduleListenSaturationRelease(measureStart, bpmForMeasure) {
   clearListenSaturationTimers();
 
-  const subdivDurMs = getSubdivDur() * 1000;
+  const subdivDur = getSubdivDur(bpmForMeasure);
+  const subdivDurMs = subdivDur * 1000;
   const releaseDurationMs = Math.max(0, 2 * subdivDurMs);
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', `${Math.round(releaseDurationMs)}ms`);
 
-  const releaseStartMs = Math.max(0, ((measureStart + (14 * getSubdivDur())) - state.audioCtx.currentTime) * 1000);
+  const releaseStartMs = Math.max(0, ((measureStart + (14 * subdivDur)) - state.audioCtx.currentTime) * 1000);
   const releaseEndMs = releaseStartMs + releaseDurationMs;
 
   state.listenSaturationStartTimer = setTimeout(() => {
@@ -663,7 +664,7 @@ function scheduleListenSaturationRelease(measureStart) {
 
 function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, levelForMeasure, bpmForMeasure) {
   const subdivDur = getSubdivDur(bpmForMeasure);
-  const phaseStartTime = phase === PHASE.TAP ? measureStart - subdivDur : measureStart;
+  const phaseStartTime = measureStart;
 
   setTimeout(() => {
     state.isIntroduction = false;
@@ -688,7 +689,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
       ui.tapZone.classList.add('listen-muted');
       ui.tapZone.classList.remove('listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
-      scheduleListenSaturationRelease(measureStart);
+      scheduleListenSaturationRelease(measureStart, bpmForMeasure);
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 

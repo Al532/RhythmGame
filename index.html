@@ -4,53 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
-    <script>
-      const ASSET_PATHS = {
-        css: 'style.css',
-        js: 'main.js',
-      };
-
-      async function resolveAssetVersion(path) {
-        try {
-          const response = await fetch(path, { method: 'HEAD', cache: 'no-store' });
-          if (!response.ok) {
-            throw new Error(`Unable to resolve version for ${path}`);
-          }
-
-          const etag = response.headers.get('etag');
-          if (etag) {
-            return encodeURIComponent(etag.replaceAll('"', ''));
-          }
-
-          const lastModified = response.headers.get('last-modified');
-          if (lastModified) {
-            return encodeURIComponent(lastModified);
-          }
-        } catch (error) {
-          console.warn('Asset version lookup failed, using runtime fallback.', error);
-        }
-
-        return `${Date.now()}`;
-      }
-
-      async function loadVersionedAssets() {
-        const [cssVersion, jsVersion] = await Promise.all([
-          resolveAssetVersion(ASSET_PATHS.css),
-          resolveAssetVersion(ASSET_PATHS.js),
-        ]);
-
-        const stylesLink = document.createElement('link');
-        stylesLink.rel = 'stylesheet';
-        stylesLink.href = `${ASSET_PATHS.css}?v=${cssVersion}`;
-        document.head.appendChild(stylesLink);
-
-        const appScript = document.createElement('script');
-        appScript.src = `${ASSET_PATHS.js}?v=${jsVersion}`;
-        document.head.appendChild(appScript);
-      }
-
-      loadVersionedAssets();
-    </script>
+    <link rel="stylesheet" href="style.css?v=1.0.3" />
+    <script src="main.js?v=1.0.3" defer></script>
   </head>
   <body>
     <main class="app">
@@ -199,7 +154,7 @@
       </details>
 
       <details class="card test-log-panel">
-        <summary>Log</summary>
+        <summary>Test log</summary>
         <pre id="testLog" class="test-log">Le log des erreurs s'affichera ici pendant la phase TAP.</pre>
       </details>
     </main>

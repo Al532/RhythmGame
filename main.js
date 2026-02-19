@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.3';
 const LEVEL_DEFAULT = 5;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -65,16 +65,16 @@ const STORAGE_KEYS = {
   hitWindowMs: 'rhythmTrainer.hitWindowMs'
 };
 
-function getInterpolationFactor() {
-  return (state.level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN);
+function getInterpolationFactor(level = LEVEL_DEFAULT) {
+  return (level - LEVEL_MIN) / (LEVEL_MAX - LEVEL_MIN);
 }
 
-function interpolateLinear(from, to) {
-  return from + ((to - from) * getInterpolationFactor());
+function interpolateLinear(from, to, factor) {
+  return from + ((to - from) * factor);
 }
 
-function interpolateRounded(from, to) {
-  return Math.round(interpolateLinear(from, to));
+function interpolateRounded(from, to, factor) {
+  return Math.round(interpolateLinear(from, to, factor));
 }
 
 function parseStoredArray(key, expectedLength) {
@@ -170,7 +170,7 @@ const state = {
   level: LEVEL_DEFAULT,
   bpmLevel1: BPM_LEVEL1_DEFAULT,
   bpmLevel10: BPM_LEVEL10_DEFAULT,
-  bpm: interpolateRounded(BPM_LEVEL1_DEFAULT, BPM_LEVEL10_DEFAULT),
+  bpm: interpolateRounded(BPM_LEVEL1_DEFAULT, BPM_LEVEL10_DEFAULT, getInterpolationFactor(LEVEL_DEFAULT)),
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
   hitTolerance: HIT_TOLERANCE_DEFAULT,
   hitWindowMs: HIT_WINDOW_DEFAULT_MS,
@@ -281,12 +281,13 @@ function updateHitWindowUI() {
 }
 
 function syncInterpolatedSettings() {
-  state.bpm = interpolateRounded(state.bpmLevel1, state.bpmLevel10);
+  const factor = getInterpolationFactor(state.level);
+  state.bpm = interpolateRounded(state.bpmLevel1, state.bpmLevel10, factor);
   state.firstHitWeights = state.firstHitWeightsLevel1.map((weight, index) => {
-    return interpolateLinear(weight, state.firstHitWeightsLevel10[index]);
+    return interpolateLinear(weight, state.firstHitWeightsLevel10[index], factor);
   });
   state.jumpWeights = state.jumpWeightsLevel1.map((weight, index) => {
-    return interpolateLinear(weight, state.jumpWeightsLevel10[index]);
+    return interpolateLinear(weight, state.jumpWeightsLevel10[index], factor);
   });
 
   ui.bpmValue.textContent = String(state.bpm);

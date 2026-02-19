@@ -153,6 +153,18 @@ summary {
   gap: 0.5rem;
 }
 
+.dual-slider-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.computed-setting {
+  margin: 0.2rem 0 0;
+  font-size: 0.92rem;
+  opacity: 0.95;
+}
+
 .probabilities fieldset + fieldset {
   margin-top: 0.75rem;
 }
@@ -240,6 +252,10 @@ summary {
 }
 
 @media (max-width: 700px) {
+  .dual-slider-row {
+    grid-template-columns: 1fr;
+  }
+
   .control-buttons {
     flex-direction: column;
   }

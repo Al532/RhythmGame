@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.14';
+const APP_VERSION = '1.0.15';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -22,10 +22,10 @@ const CALIBRATION_BEATS = 16;
 const CALIBRATION_MAX_DELAY_MS = 500;
 const SCHED_LOOKAHEAD_MS = 120;
 const SCHED_INTERVAL_MS = 25;
-const MAX_SCORE = 50;
+const MAX_SCORE = 20;
 const SCORE_RECOVERY_PER_SECOND_DEFAULT = 1;
 const SCORE_RECOVERY_PER_SECOND_MIN = 0;
-const SCORE_RECOVERY_PER_SECOND_MAX = 10;
+const SCORE_RECOVERY_PER_SECOND_MAX = 1;
 
 const FIRST_HIT_INDICES = [1, 2, 3];
 const FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0];
@@ -362,7 +362,7 @@ function applyPersistedSettings() {
   const storedScoreRecoveryPerSecond = loadStoredNumber(STORAGE_KEYS.scoreRecoveryPerSecond);
   if (storedScoreRecoveryPerSecond !== null) {
     state.scoreRecoveryPerSecond = clamp(
-      Math.round(storedScoreRecoveryPerSecond),
+      Number(storedScoreRecoveryPerSecond.toFixed(1)),
       SCORE_RECOVERY_PER_SECOND_MIN,
       SCORE_RECOVERY_PER_SECOND_MAX
     );
@@ -659,7 +659,6 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
       ui.tapZone.classList.remove('listen-muted', 'listen-release');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       stopScoreRecoveryAnimation();
-  stopScoreRegeneration();
       prepareTapPhase(measureStart, patternForMeasure);
     } else if (phase === PHASE.LISTEN) {
       ui.tapZone.classList.add('listen-muted');
@@ -767,7 +766,6 @@ function startScoreRegeneration() {
   const regenStepSeconds = SCORE_REGEN_INTERVAL_MS / 1000;
   state.scoreRegenTimer = setInterval(() => {
     if (!state.isRunning) return;
-    if (state.livePhase !== PHASE.TAP) return;
     if (state.score >= MAX_SCORE) return;
     const recoveredScore = state.scoreRecoveryPerSecond * regenStepSeconds;
     if (recoveredScore <= 0) return;
@@ -1102,7 +1100,7 @@ function clearLocalCache() {
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
   ui.hitTolerance.value = String(state.hitTolerance);
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
-  ui.scoreRecoveryPerSecondValue.textContent = String(state.scoreRecoveryPerSecond);
+  ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
   updateHitWindowUI();
   updateHitToleranceUI();
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
@@ -1172,7 +1170,7 @@ ui.hitTolerance.value = String(state.hitTolerance);
 ui.scoreRecoveryPerSecond.min = String(SCORE_RECOVERY_PER_SECOND_MIN);
 ui.scoreRecoveryPerSecond.max = String(SCORE_RECOVERY_PER_SECOND_MAX);
 ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
-ui.scoreRecoveryPerSecondValue.textContent = String(state.scoreRecoveryPerSecond);
+ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
 
 ui.startLevel.addEventListener('input', (e) => {
   state.startLevel = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
@@ -1221,9 +1219,9 @@ ui.hitTolerance.addEventListener('input', (e) => {
 });
 
 ui.scoreRecoveryPerSecond.addEventListener('input', (e) => {
-  state.scoreRecoveryPerSecond = clamp(Math.round(Number(e.target.value)), SCORE_RECOVERY_PER_SECOND_MIN, SCORE_RECOVERY_PER_SECOND_MAX);
+  state.scoreRecoveryPerSecond = clamp(Number(Number(e.target.value).toFixed(1)), SCORE_RECOVERY_PER_SECOND_MIN, SCORE_RECOVERY_PER_SECOND_MAX);
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
-  ui.scoreRecoveryPerSecondValue.textContent = String(state.scoreRecoveryPerSecond);
+  ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
   saveSetting(STORAGE_KEYS.scoreRecoveryPerSecond, state.scoreRecoveryPerSecond);
 });
 

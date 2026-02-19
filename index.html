@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
     <script>
-      // Bump this value on each release to invalidate browser caches.
-      // Keep any future Service Worker cache names aligned (e.g. app-cache-<version>).
-      window.APP_VERSION = '20260219';
+      // Asset versioning policy (for Codex and contributors):
+      // - Update on every frontend code change (HTML/CSS/JS) in the same commit.
+      // - Format: UTC timestamp YYYYMMDDHHmmss.
+      // - Purpose: cache busting for static assets and alignment with future SW cache names.
+      window.APP_VERSION = '20260219140728';
 
       const stylesLink = document.createElement('link');
       stylesLink.rel = 'stylesheet';

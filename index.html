@@ -40,6 +40,11 @@
         </label>
 
         <label>
+          Hit window (ms): <span id="hitWindowDisplay">250</span>
+          <input id="hitWindow" type="range" min="250" max="250" step="1" value="250" />
+        </label>
+
+        <label>
           Hit tolerance: <span id="hitToleranceDisplay">50 (125 ms)</span>
           <input id="hitTolerance" type="range" min="0" max="100" step="1" value="50" />
         </label>
@@ -49,6 +54,7 @@
         <div class="control-buttons">
           <button id="startStop" type="button">Start</button>
           <button id="calibration" type="button">Calibration</button>
+          <button id="clearCache" type="button">Supprimer le cache local</button>
         </div>
       </section>
 

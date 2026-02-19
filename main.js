@@ -10,6 +10,8 @@ const INPUT_LATENCY_MAX_MS = 400;
 const HIT_TOLERANCE_DEFAULT = 50;
 const HIT_TOLERANCE_MIN = 0;
 const HIT_TOLERANCE_MAX = 100;
+const HIT_WINDOW_DEFAULT_MS = 250;
+const HIT_WINDOW_MAX_MS = 250;
 const CALIBRATION_BPM = 60;
 const CALIBRATION_BEATS = 16;
 const CALIBRATION_MAX_DELAY_MS = 500;
@@ -48,7 +50,8 @@ const PHASE = {
 const STORAGE_KEYS = {
   bpm: 'rhythmTrainer.bpm',
   latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
-  hitTolerance: 'rhythmTrainer.hitTolerance'
+  hitTolerance: 'rhythmTrainer.hitTolerance',
+  hitWindowMs: 'rhythmTrainer.hitWindowMs'
 };
 
 function clamp(value, min, max) {
@@ -85,6 +88,9 @@ const ui = {
   latencyValue: document.getElementById('latencyValue'),
   hitTolerance: document.getElementById('hitTolerance'),
   hitToleranceDisplay: document.getElementById('hitToleranceDisplay'),
+  hitWindow: document.getElementById('hitWindow'),
+  hitWindowDisplay: document.getElementById('hitWindowDisplay'),
+  clearCache: document.getElementById('clearCache'),
   calibration: document.getElementById('calibration'),
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
@@ -110,6 +116,7 @@ const state = {
   bpm: BPM_DEFAULT,
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
   hitTolerance: HIT_TOLERANCE_DEFAULT,
+  hitWindowMs: HIT_WINDOW_DEFAULT_MS,
 
   firstHitWeights: [...FIRST_HIT_WEIGHTS_DEFAULT],
   jumpWeights: [...JUMP_WEIGHTS_DEFAULT],
@@ -171,7 +178,11 @@ function getSubdivMs() {
 }
 
 function getHitToleranceMs() {
-  return (state.hitTolerance / 100) * getSubdivMs();
+  return (state.hitTolerance / 100) * state.hitWindowMs;
+}
+
+function getMinHitWindowMs() {
+  return Math.round(getSubdivMs());
 }
 
 function formatPatternForLog(pattern) {
@@ -189,6 +200,15 @@ function updateHitToleranceUI() {
   ui.hitToleranceDisplay.textContent = `${state.hitTolerance} (${toleranceMs} ms)`;
 }
 
+function updateHitWindowUI() {
+  const minHitWindowMs = getMinHitWindowMs();
+  state.hitWindowMs = clamp(state.hitWindowMs, minHitWindowMs, HIT_WINDOW_MAX_MS);
+  ui.hitWindow.min = String(minHitWindowMs);
+  ui.hitWindow.max = String(HIT_WINDOW_MAX_MS);
+  ui.hitWindow.value = String(state.hitWindowMs);
+  ui.hitWindowDisplay.textContent = String(state.hitWindowMs);
+}
+
 function applyPersistedSettings() {
   const storedBpm = loadStoredNumber(STORAGE_KEYS.bpm);
   if (storedBpm !== null) {
@@ -203,6 +223,11 @@ function applyPersistedSettings() {
   const storedTolerance = loadStoredNumber(STORAGE_KEYS.hitTolerance);
   if (storedTolerance !== null) {
     state.hitTolerance = clamp(Math.round(storedTolerance), HIT_TOLERANCE_MIN, HIT_TOLERANCE_MAX);
+  }
+
+  const storedHitWindowMs = loadStoredNumber(STORAGE_KEYS.hitWindowMs);
+  if (storedHitWindowMs !== null) {
+    state.hitWindowMs = Math.round(storedHitWindowMs);
   }
 }
 
@@ -508,21 +533,23 @@ function updateStaticUI() {
   ui.tapZone.classList.toggle('active', (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating));
 }
 
-function getOldestExpectedHitWithinTolerance(adjustedTapTime) {
-  const toleranceSec = getHitToleranceMs() / 1000;
-  const anticipWindowSec = getSubdivDur();
+function getClosestExpectedHitWithinWindow(adjustedTapTime) {
+  const hitWindowSec = state.hitWindowMs / 1000;
+  let closestHit = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const hit of state.expectedHits) {
     if (hit.hit || hit.missed) continue;
-    const earlyAllowance = hit.idx === 0 ? anticipWindowSec : toleranceSec;
-    const earlyDelta = hit.targetTime - adjustedTapTime;
-    const lateDelta = adjustedTapTime - hit.targetTime;
-    if (earlyDelta <= earlyAllowance && lateDelta <= toleranceSec) {
-      return hit;
+    const distance = Math.abs(adjustedTapTime - hit.targetTime);
+    if (distance > hitWindowSec) continue;
+
+    if (!closestHit || distance < bestDistance || (distance === bestDistance && hit.targetTime < closestHit.targetTime)) {
+      bestDistance = distance;
+      closestHit = hit;
     }
   }
 
-  return null;
+  return closestHit;
 }
 
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
@@ -628,7 +655,7 @@ function recordTap() {
     recordCalibrationTap(tapTime);
   } else if (state.isRunning && state.livePhase === PHASE.TAP) {
     const adjustedTapTime = tapTime - (state.latencyOffsetMs / 1000);
-    const hit = getOldestExpectedHitWithinTolerance(adjustedTapTime);
+    const hit = getClosestExpectedHitWithinWindow(adjustedTapTime);
 
     if (hit) {
       hit.hit = true;
@@ -651,6 +678,32 @@ function recordTap() {
   ui.tapZone.classList.add('pressed');
   setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
 
+}
+
+
+function clearLocalCache() {
+  try {
+    window.localStorage.removeItem(STORAGE_KEYS.bpm);
+    window.localStorage.removeItem(STORAGE_KEYS.latencyOffsetMs);
+    window.localStorage.removeItem(STORAGE_KEYS.hitTolerance);
+    window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
+  } catch (_error) {
+    // Ignore storage errors
+  }
+
+  state.bpm = BPM_DEFAULT;
+  state.latencyOffsetMs = INPUT_LATENCY_DEFAULT_MS;
+  state.hitTolerance = HIT_TOLERANCE_DEFAULT;
+  state.hitWindowMs = HIT_WINDOW_DEFAULT_MS;
+
+  ui.bpm.value = String(state.bpm);
+  ui.bpmValue.textContent = String(state.bpm);
+  ui.latency.value = String(state.latencyOffsetMs);
+  ui.latencyValue.textContent = String(state.latencyOffsetMs);
+  ui.hitTolerance.value = String(state.hitTolerance);
+  updateHitWindowUI();
+  updateHitToleranceUI();
+  ui.calibrationResult.textContent = 'Cache local supprimé : paramètres réinitialisés.';
 }
 
 function bindProbabilityControls() {
@@ -688,6 +741,7 @@ ui.bpm.addEventListener('input', (e) => {
   state.bpm = clamp(Number(e.target.value), BPM_MIN, BPM_MAX);
   ui.bpmValue.textContent = String(state.bpm);
   saveSetting(STORAGE_KEYS.bpm, state.bpm);
+  updateHitWindowUI();
   updateHitToleranceUI();
 });
 
@@ -698,6 +752,14 @@ ui.latency.addEventListener('input', (e) => {
   saveSetting(STORAGE_KEYS.latencyOffsetMs, state.latencyOffsetMs);
 });
 
+ui.hitWindow.addEventListener('input', (e) => {
+  const minHitWindowMs = getMinHitWindowMs();
+  state.hitWindowMs = clamp(Math.round(Number(e.target.value)), minHitWindowMs, HIT_WINDOW_MAX_MS);
+  updateHitWindowUI();
+  saveSetting(STORAGE_KEYS.hitWindowMs, state.hitWindowMs);
+  updateHitToleranceUI();
+});
+
 ui.hitTolerance.addEventListener('input', (e) => {
   state.hitTolerance = clamp(Number(e.target.value), HIT_TOLERANCE_MIN, HIT_TOLERANCE_MAX);
   saveSetting(STORAGE_KEYS.hitTolerance, state.hitTolerance);
@@ -706,6 +768,7 @@ ui.hitTolerance.addEventListener('input', (e) => {
 
 ui.startStop.addEventListener('click', toggleEngine);
 ui.calibration.addEventListener('click', startCalibration);
+ui.clearCache.addEventListener('click', clearLocalCache);
 
 ui.tapZone.addEventListener('pointerdown', (e) => {
   e.preventDefault();
@@ -728,6 +791,7 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 bindProbabilityControls();
+updateHitWindowUI();
 updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();

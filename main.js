@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = '1.0.15';
+const APP_VERSION = window.APP_VERSION || '1.0.16';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -1264,4 +1264,4 @@ updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();
 showStartScreen();
-ui.appVersion.textContent = APP_VERSION;
+ui.appVersion.textContent = `v${APP_VERSION}`;

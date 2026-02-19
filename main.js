@@ -1024,6 +1024,7 @@ function startCalibration() {
   unlockAudio();
   if (!state.audioCtx || state.isRunning || state.isCalibrating) return;
 
+  showGameScreen();
   state.isCalibrating = true;
   state.livePhase = PHASE.CALIBRATION;
   state.calibrationTargets = [];
@@ -1049,6 +1050,7 @@ function startCalibration() {
     state.livePhase = PHASE.LISTEN;
     applyCalibrationResult();
     updateStaticUI();
+    showStartScreen();
   }, calibrationDurationMs);
 }
 

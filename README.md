@@ -2,8 +2,12 @@
 
 ## Asset versioning convention
 
-`window.APP_VERSION` in `index.html` must be updated on every frontend code change (HTML/CSS/JS), in the same commit.
+Asset versions are now resolved automatically at runtime in `index.html`.
 
-Format required: UTC timestamp `YYYYMMDDHHmmss` (example: `20260219140728`).
+For each static asset (`style.css`, `main.js`), the loader uses `HEAD` metadata in this order:
 
-This value is used for cache busting via query params on static assets (for example `style.css?v=...` and `main.js?v=...`).
+1. `etag`
+2. `last-modified`
+3. fallback `Date.now()` when metadata is unavailable
+
+This guarantees cache-busting query params (`?v=...`) even when only CSS (or another single asset) changes, without manually editing a global version string.

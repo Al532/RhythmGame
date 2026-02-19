@@ -1,10 +1,10 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const BPM_DEFAULT = 60;
+const BPM_DEFAULT = 90;
 const BPM_MIN = 40;
 const BPM_MAX = 120;
-const INPUT_LATENCY_DEFAULT_MS = 50;
+const INPUT_LATENCY_DEFAULT_MS = 15;
 const INPUT_LATENCY_MIN_MS = 0;
 const INPUT_LATENCY_MAX_MS = 400;
 const HIT_TOLERANCE_DEFAULT = 50;
@@ -78,10 +78,6 @@ function loadStoredNumber(key) {
 }
 
 const ui = {
-  phaseLabel: document.getElementById('phaseLabel'),
-  patternCount: document.getElementById('patternCount'),
-  scoreValue: document.getElementById('scoreValue'),
-  scoreBar: document.getElementById('scoreBar'),
   bpm: document.getElementById('bpm'),
   bpmValue: document.getElementById('bpmValue'),
   latency: document.getElementById('latency'),
@@ -207,9 +203,10 @@ function updateHitToleranceUI() {
 
 function updateHitWindowUI() {
   const minHitWindowMs = getMinHitWindowMs();
-  state.hitWindowMs = clamp(state.hitWindowMs, minHitWindowMs, HIT_WINDOW_MAX_MS);
+  const effectiveMax = Math.max(HIT_WINDOW_MAX_MS, minHitWindowMs);
+  state.hitWindowMs = clamp(state.hitWindowMs, minHitWindowMs, effectiveMax);
   ui.hitWindow.min = String(minHitWindowMs);
-  ui.hitWindow.max = String(HIT_WINDOW_MAX_MS);
+  ui.hitWindow.max = String(effectiveMax);
   ui.hitWindow.value = String(state.hitWindowMs);
   ui.hitWindowDisplay.textContent = String(state.hitWindowMs);
 }
@@ -476,10 +473,10 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure) {
 }
 
 function flashScore() {
-  ui.scoreBar.style.filter = 'brightness(1.35)';
+  ui.tapZone.style.filter = 'brightness(1.2)';
   clearTimeout(state.lastFlash);
   state.lastFlash = setTimeout(() => {
-    ui.scoreBar.style.filter = 'none';
+    ui.tapZone.style.filter = 'none';
   }, 160);
 }
 
@@ -570,18 +567,16 @@ function toggleEngine() {
 
 
 function updateScoreUI() {
-  ui.scoreValue.textContent = String(state.score);
-  ui.scoreBar.style.height = `${(state.score / MAX_SCORE) * 100}%`;
+  const ratio = clamp(state.score / MAX_SCORE, 0, 1);
+  const hue = Math.round(ratio * 120);
+  ui.tapZone.style.setProperty('--fill-height', `${Math.round(ratio * 100)}%`);
+  ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);
 }
 
 function updateStaticUI() {
-  if (state.isCalibrating) {
-    ui.phaseLabel.textContent = 'CALIBRATION';
-  } else {
-    ui.phaseLabel.textContent = `${state.livePhase} (${state.liveRepetition}/${REPS_PER_PATTERN})`;
-  }
-  ui.patternCount.textContent = `#${state.patternNumber}`;
-  ui.tapZone.classList.toggle('active', (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating));
+  const isTapActive = (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating);
+  ui.tapZone.classList.toggle('active', isTapActive);
+  document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
 }
 
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
@@ -806,7 +801,8 @@ ui.latency.addEventListener('input', (e) => {
 
 ui.hitWindow.addEventListener('input', (e) => {
   const minHitWindowMs = getMinHitWindowMs();
-  state.hitWindowMs = clamp(Math.round(Number(e.target.value)), minHitWindowMs, HIT_WINDOW_MAX_MS);
+  const effectiveMax = Math.max(HIT_WINDOW_MAX_MS, minHitWindowMs);
+  state.hitWindowMs = clamp(Math.round(Number(e.target.value)), minHitWindowMs, effectiveMax);
   updateHitWindowUI();
   saveSetting(STORAGE_KEYS.hitWindowMs, state.hitWindowMs);
   updateHitToleranceUI();

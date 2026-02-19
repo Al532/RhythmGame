@@ -17,6 +17,11 @@ body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   background: radial-gradient(circle at top, #1f2550, var(--bg));
   color: var(--text);
+  transition: background 180ms ease;
+}
+
+body.tap-phase {
+  background: radial-gradient(circle at top, #2f8253, #102217);
 }
 
 .app {
@@ -27,13 +32,9 @@ body {
   gap: 1rem;
 }
 
-h1 {
+h2 {
   margin: 0;
-}
-
-.hint {
-  opacity: 0.85;
-  margin-top: 0.5rem;
+  font-size: 1.1rem;
 }
 
 .card {
@@ -43,39 +44,34 @@ h1 {
   padding: 1rem;
 }
 
-.status-panel {
+.controls,
+.game {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
-.label {
-  display: block;
-  font-size: 0.8rem;
-  opacity: 0.75;
-}
-
-.controls {
-  display: grid;
-  gap: 0.75rem;
+.game {
+  justify-items: center;
 }
 
 .control-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
-  margin-top: 0.4rem;
   align-self: end;
 }
 
-#startStop {
-  justify-self: start;
-  border: 1px solid color-mix(in srgb, var(--accent), transparent 50%);
-  background: color-mix(in srgb, var(--accent), transparent 82%);
+button {
   color: var(--text);
   border-radius: 10px;
   padding: 0.55rem 0.9rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+#startStop {
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 50%);
+  background: color-mix(in srgb, var(--accent), transparent 82%);
 }
 
 #startStop:hover {
@@ -85,30 +81,11 @@ h1 {
 #calibration {
   border: 1px solid color-mix(in srgb, var(--warn), transparent 50%);
   background: color-mix(in srgb, var(--warn), transparent 82%);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 0.55rem 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
 }
-
-#calibration:hover {
-  background: color-mix(in srgb, var(--warn), transparent 70%);
-}
-
 
 #clearCache {
   border: 1px solid color-mix(in srgb, var(--danger), transparent 50%);
   background: color-mix(in srgb, var(--danger), transparent 82%);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 0.55rem 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-#clearCache:hover {
-  background: color-mix(in srgb, var(--danger), transparent 70%);
 }
 
 label {
@@ -131,9 +108,15 @@ label {
   gap: 0.5rem;
 }
 
-.test-log-panel h2 {
-  margin: 0;
-  font-size: 1rem;
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.test-log-panel[open] summary,
+.probabilities[open] summary {
+  margin-bottom: 0.75rem;
 }
 
 .test-log {
@@ -148,16 +131,6 @@ label {
   font-size: 0.82rem;
   line-height: 1.35;
   white-space: pre-wrap;
-}
-
-.probabilities summary {
-  cursor: pointer;
-  font-weight: 600;
-  user-select: none;
-}
-
-.probabilities[open] summary {
-  margin-bottom: 0.75rem;
 }
 
 .probabilities fieldset {
@@ -177,53 +150,37 @@ label {
   padding: 0 0.4rem;
 }
 
-.score {
-  display: flex;
-  justify-content: center;
-}
-
-.score-bar-wrap {
-  width: 36px;
-  height: 220px;
-  border: 2px solid #495292;
-  border-radius: 12px;
-  display: flex;
-  align-items: flex-end;
-  padding: 4px;
-  background: #171c39;
-}
-
-.score-bar {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to top, var(--danger), var(--warn), var(--ok));
-  border-radius: 8px;
-  transition: height 140ms ease-out;
-}
-
 .tap-zone {
-  width: 100%;
-  min-height: 96px;
-  border-radius: 14px;
-  border: 2px dashed #8cc1ff;
-  background: color-mix(in srgb, #7cb5ff, transparent 85%);
-  color: var(--text);
-  font-size: 1rem;
+  --score-color: var(--ok);
+  --fill-height: 100%;
+  width: min(280px, 65vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 4px solid color-mix(in srgb, white, transparent 65%);
+  background:
+    linear-gradient(to top, var(--score-color) var(--fill-height), #292e4f var(--fill-height));
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  letter-spacing: 0.03em;
+  transition: transform 100ms ease, background 140ms ease, border-color 140ms ease;
 }
 
 .tap-zone.active {
-  border-style: solid;
-  background: color-mix(in srgb, #7cb5ff, transparent 65%);
+  border-color: color-mix(in srgb, var(--ok), white 25%);
 }
 
 .tap-zone.pressed {
-  transform: scale(0.99);
-  border-color: var(--ok);
-  background: color-mix(in srgb, #7cb5ff, transparent 48%);
+  transform: scale(0.98);
 }
 
 @media (max-width: 700px) {
-  .status-panel {
-    grid-template-columns: 1fr;
+  .control-buttons {
+    flex-direction: column;
+  }
+
+  .control-buttons button {
+    width: 100%;
   }
 }

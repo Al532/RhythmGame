@@ -66,6 +66,14 @@ const FX_PHASE = {
   TAP: 'tap'
 };
 
+const DEFAULT_VISUAL_FX_FLAGS = Object.freeze({
+  ambientLayer: true,
+  noise: true,
+  tapRing: true,
+  hueShift: true,
+  webglPost: true
+});
+
 
 const STORAGE_KEYS = {
   level: 'rhythmTrainer.level',
@@ -268,7 +276,8 @@ const state = {
   fxEngine: null,
   fxWebglEnabled: false,
   fxPreset: 'minimal',
-  fxIntensity: 0.8
+  fxIntensity: 0.8,
+  visualFxFlags: { ...DEFAULT_VISUAL_FX_FLAGS }
 };
 
 
@@ -281,6 +290,7 @@ function createCssOnlyFxFallback() {
     setSafeMode() {},
     setPreset() {},
     setPostIntensity() {},
+    setNoiseEnabled() {},
     setLimiter() {},
     resize() {},
     destroy() {}
@@ -315,12 +325,37 @@ function applyFxMode({ webglEnabled }) {
   document.body.classList.toggle('fx-css-only', !webglEnabled);
 }
 
+function shouldUseCssNoiseLayer() {
+  return state.visualFxFlags.noise && !state.fxWebglEnabled;
+}
+
+function applyCssFxFlags() {
+  document.body.classList.toggle('fx-ambient-enabled', state.visualFxFlags.ambientLayer);
+  document.body.classList.toggle('fx-tap-ring-enabled', state.visualFxFlags.tapRing);
+  document.body.classList.toggle('fx-hue-shift-enabled', state.visualFxFlags.hueShift);
+  document.body.classList.toggle('fx-css-noise-enabled', shouldUseCssNoiseLayer());
+}
+
+function applyWebglFxFlags() {
+  if (!state.fxEngine) return;
+  state.fxEngine.setPreset(state.fxPreset);
+  state.fxEngine.setPostIntensity(state.visualFxFlags.webglPost ? state.fxIntensity : 0);
+  state.fxEngine.setNoiseEnabled(state.visualFxFlags.noise);
+}
+
+function reapplyVisualFxFlags() {
+  applyCssFxFlags();
+  applyWebglFxFlags();
+  updateVisualFx(performance.now(), { force: true });
+}
+
 async function initializeFxEngine() {
   const fallback = createCssOnlyFxFallback();
   const canvas = ui.fxCanvas;
   if (!canvas) {
     state.fxEngine = fallback;
     applyFxMode({ webglEnabled: false });
+    applyCssFxFlags();
     return;
   }
 
@@ -331,20 +366,22 @@ async function initializeFxEngine() {
     if (!engine) {
       state.fxEngine = fallback;
       applyFxMode({ webglEnabled: false });
+      applyCssFxFlags();
       return;
     }
 
     state.fxEngine = engine;
     applyFxMode({ webglEnabled: true });
     state.fxEngine.setSafeMode(isSafeFxPreferred());
-    state.fxEngine.setPreset(state.fxPreset);
-    state.fxEngine.setPostIntensity(state.fxIntensity);
+    applyWebglFxFlags();
     state.fxEngine.setLimiter(0.92);
     updateFxEngineState();
     state.fxEngine.resize(window.innerWidth, window.innerHeight);
+    applyCssFxFlags();
   } catch (_error) {
     state.fxEngine = fallback;
     applyFxMode({ webglEnabled: false });
+    applyCssFxFlags();
   }
 }
 
@@ -1046,6 +1083,7 @@ function startEngine() {
   state.liveRepetition = 1;
   state.livePhase = PHASE.LISTEN;
   state.fxEngine?.setPhase(FX_PHASE.LISTEN);
+  reapplyVisualFxFlags();
   state.expectedHits = [];
   state.tapPattern = null;
   state.tapMeasureBpm = state.liveBpm;
@@ -1098,6 +1136,7 @@ function stopEngine() {
   state.livePhase = PHASE.LISTEN;
   state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   state.liveRepetition = 1;
+  reapplyVisualFxFlags();
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
   updateStaticUI();
@@ -1146,11 +1185,11 @@ function updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForV
   const tapRingScale = clamp(0.9 + (0.08 * bpmFactor) + (0.06 * levelFactor) + (Math.max(0, phasePulse) * 0.03), 0.88, 1.08);
 
   const rootStyle = document.documentElement.style;
-  rootStyle.setProperty('--ambient-layer-opacity', ambientOpacity.toFixed(3));
-  rootStyle.setProperty('--ambient-layer-scale', ambientScale.toFixed(3));
-  rootStyle.setProperty('--noise-opacity', noiseOpacity.toFixed(3));
-  rootStyle.setProperty('--tap-ring-opacity', tapRingOpacity.toFixed(3));
-  rootStyle.setProperty('--tap-ring-scale', tapRingScale.toFixed(3));
+  rootStyle.setProperty('--ambient-layer-opacity', state.visualFxFlags.ambientLayer ? ambientOpacity.toFixed(3) : '0');
+  rootStyle.setProperty('--ambient-layer-scale', state.visualFxFlags.ambientLayer ? ambientScale.toFixed(3) : '1');
+  rootStyle.setProperty('--noise-opacity', shouldUseCssNoiseLayer() ? noiseOpacity.toFixed(3) : '0');
+  rootStyle.setProperty('--tap-ring-opacity', state.visualFxFlags.tapRing ? tapRingOpacity.toFixed(3) : '0');
+  rootStyle.setProperty('--tap-ring-scale', state.visualFxFlags.tapRing ? tapRingScale.toFixed(3) : '1');
 }
 
 function updateVisualFx(timestamp, { force = false } = {}) {
@@ -1176,11 +1215,14 @@ function updateVisualFx(timestamp, { force = false } = {}) {
   const lightnessBoost = ((inTapPhase ? 8 : 4) + (phasePulse * (inTapPhase ? 5 : 3))) * amplitude;
 
   const rootStyle = document.documentElement.style;
-  rootStyle.setProperty('--hue-primary', `${hue.toFixed(2)}deg`);
-  rootStyle.setProperty('--hue-secondary', `${((hue + 120) % 360).toFixed(2)}deg`);
-  rootStyle.setProperty('--hue-accent', `${((hue + 240) % 360).toFixed(2)}deg`);
-  rootStyle.setProperty('--phase-sat-boost', `${saturationBoost.toFixed(2)}%`);
-  rootStyle.setProperty('--phase-light-boost', `${lightnessBoost.toFixed(2)}%`);
+  const huePrimary = state.visualFxFlags.hueShift ? hue : 220;
+  const hueSecondary = state.visualFxFlags.hueShift ? ((hue + 120) % 360) : 340;
+  const hueAccent = state.visualFxFlags.hueShift ? ((hue + 240) % 360) : 100;
+  rootStyle.setProperty('--hue-primary', `${huePrimary.toFixed(2)}deg`);
+  rootStyle.setProperty('--hue-secondary', `${hueSecondary.toFixed(2)}deg`);
+  rootStyle.setProperty('--hue-accent', `${hueAccent.toFixed(2)}deg`);
+  rootStyle.setProperty('--phase-sat-boost', state.visualFxFlags.hueShift ? `${saturationBoost.toFixed(2)}%` : '0%');
+  rootStyle.setProperty('--phase-light-boost', state.visualFxFlags.hueShift ? `${lightnessBoost.toFixed(2)}%` : '0%');
   updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForVisuals });
 
   if (!force && state.visualFxFrame !== null) {
@@ -1420,6 +1462,7 @@ function clearLocalCache() {
   state.maxScore = MAX_SCORE_DEFAULT;
   state.fxPreset = 'minimal';
   state.fxIntensity = 0.8;
+  state.visualFxFlags = { ...DEFAULT_VISUAL_FX_FLAGS };
   state.score = state.maxScore;
   state.displayedScore = state.maxScore;
   state.displayedScoreTarget = state.maxScore;
@@ -1449,8 +1492,7 @@ function clearLocalCache() {
   ui.fxPreset.value = state.fxPreset;
   ui.fxIntensity.value = String(state.fxIntensity);
   ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
-  state.fxEngine?.setPreset(state.fxPreset);
-  state.fxEngine?.setPostIntensity(state.fxIntensity);
+  reapplyVisualFxFlags();
   updateHitWindowUI();
   updateHitToleranceUI();
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
@@ -1503,6 +1545,7 @@ ui.bpmLevel1.max = String(BPM_MAX);
 ui.bpmLevel10.min = String(BPM_MIN);
 ui.bpmLevel10.max = String(BPM_MAX);
 applyPersistedSettings();
+applyCssFxFlags();
 
 ui.startLevel.value = String(state.startLevel);
 ui.startLevelValue.textContent = String(state.startLevel);
@@ -1595,7 +1638,7 @@ ui.fxPreset.addEventListener('change', (e) => {
   const nextPreset = e.target.value;
   if (nextPreset !== 'minimal' && nextPreset !== 'neon' && nextPreset !== 'insane') return;
   state.fxPreset = nextPreset;
-  state.fxEngine?.setPreset(state.fxPreset);
+  applyWebglFxFlags();
   try {
     window.localStorage.setItem(STORAGE_KEYS.fxPreset, state.fxPreset);
   } catch (_error) {
@@ -1607,7 +1650,7 @@ ui.fxIntensity.addEventListener('input', (e) => {
   state.fxIntensity = clamp(Number(Number(e.target.value).toFixed(2)), 0, 1.2);
   ui.fxIntensity.value = String(state.fxIntensity);
   ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
-  state.fxEngine?.setPostIntensity(state.fxIntensity);
+  applyWebglFxFlags();
   saveSetting(STORAGE_KEYS.fxIntensity, state.fxIntensity);
 });
 

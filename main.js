@@ -79,7 +79,9 @@ const STORAGE_KEYS = {
   hitTolerance: 'rhythmTrainer.hitTolerance',
   hitWindowMs: 'rhythmTrainer.hitWindowMs',
   scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond',
-  maxScore: 'rhythmTrainer.maxScore'
+  maxScore: 'rhythmTrainer.maxScore',
+  fxPreset: 'rhythmTrainer.fxPreset',
+  fxIntensity: 'rhythmTrainer.fxIntensity'
 };
 
 function getInterpolationFactor(level = LEVEL_DEFAULT) {
@@ -173,6 +175,9 @@ const ui = {
   tapZone: document.getElementById('tapZone'),
   tapZoneLabel: document.getElementById('tapZoneLabel'),
   fxCanvas: document.getElementById('fxCanvas'),
+  fxPreset: document.getElementById('fxPreset'),
+  fxIntensity: document.getElementById('fxIntensity'),
+  fxIntensityValue: document.getElementById('fxIntensityValue'),
   endpointInputs: [
     { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
     { input: document.getElementById('weightFirst2Level10'), value: document.getElementById('weightFirst2Level10Value'), key: 'first', level: 10, index: 0 },
@@ -261,7 +266,9 @@ const state = {
   startLevel: LEVEL_DEFAULT,
   pendingBpmDisplayUpdate: false,
   fxEngine: null,
-  fxWebglEnabled: false
+  fxWebglEnabled: false,
+  fxPreset: 'minimal',
+  fxIntensity: 0.8
 };
 
 
@@ -272,6 +279,9 @@ function createCssOnlyFxFallback() {
     setPhase() {},
     pulseHit() {},
     setSafeMode() {},
+    setPreset() {},
+    setPostIntensity() {},
+    setLimiter() {},
     resize() {},
     destroy() {}
   };
@@ -327,6 +337,9 @@ async function initializeFxEngine() {
     state.fxEngine = engine;
     applyFxMode({ webglEnabled: true });
     state.fxEngine.setSafeMode(isSafeFxPreferred());
+    state.fxEngine.setPreset(state.fxPreset);
+    state.fxEngine.setPostIntensity(state.fxIntensity);
+    state.fxEngine.setLimiter(0.92);
     updateFxEngineState();
     state.fxEngine.resize(window.innerWidth, window.innerHeight);
   } catch (_error) {
@@ -473,6 +486,20 @@ function applyPersistedSettings() {
   const storedMaxScore = loadStoredNumber(STORAGE_KEYS.maxScore);
   if (storedMaxScore !== null) {
     state.maxScore = clamp(Math.round(storedMaxScore), MAX_SCORE_MIN, MAX_SCORE_MAX);
+  }
+
+  try {
+    const storedFxPreset = window.localStorage.getItem(STORAGE_KEYS.fxPreset);
+    if (storedFxPreset === 'minimal' || storedFxPreset === 'neon' || storedFxPreset === 'insane') {
+      state.fxPreset = storedFxPreset;
+    }
+  } catch (_error) {
+    // Ignore storage errors
+  }
+
+  const storedFxIntensity = loadStoredNumber(STORAGE_KEYS.fxIntensity);
+  if (storedFxIntensity !== null) {
+    state.fxIntensity = clamp(Number(storedFxIntensity.toFixed(2)), 0, 1.2);
   }
 
   syncInterpolatedSettings();
@@ -1313,7 +1340,9 @@ function recordTap() {
 
       if (Math.abs(errorSec) <= toleranceSec) {
         hit.correct = true;
-        pulseIntensity = 1;
+        const perfectWindowSec = Math.min(0.03, toleranceSec * 0.4);
+        const isPerfect = Math.abs(errorSec) <= perfectWindowSec;
+        pulseIntensity = isPerfect ? 1.25 : 1;
         appendLog(
           `[OK] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
@@ -1350,7 +1379,7 @@ function recordTap() {
   }
 
   triggerTapZoneFeedback({ vibrate: true });
-  state.fxEngine?.pulseHit(pulseIntensity);
+  state.fxEngine?.pulseHit(pulseIntensity, { perfect: pulseIntensity > 1.1 });
 
 }
 
@@ -1369,6 +1398,8 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
     window.localStorage.removeItem(STORAGE_KEYS.scoreRecoveryPerSecond);
     window.localStorage.removeItem(STORAGE_KEYS.maxScore);
+    window.localStorage.removeItem(STORAGE_KEYS.fxPreset);
+    window.localStorage.removeItem(STORAGE_KEYS.fxIntensity);
   } catch (_error) {
     // Ignore storage errors
   }
@@ -1387,6 +1418,8 @@ function clearLocalCache() {
   state.hitWindowMs = HIT_WINDOW_DEFAULT_MS;
   state.scoreRecoveryPerSecond = SCORE_RECOVERY_PER_SECOND_DEFAULT;
   state.maxScore = MAX_SCORE_DEFAULT;
+  state.fxPreset = 'minimal';
+  state.fxIntensity = 0.8;
   state.score = state.maxScore;
   state.displayedScore = state.maxScore;
   state.displayedScoreTarget = state.maxScore;
@@ -1413,6 +1446,11 @@ function clearLocalCache() {
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
   ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
   ui.maxScore.value = String(state.maxScore);
+  ui.fxPreset.value = state.fxPreset;
+  ui.fxIntensity.value = String(state.fxIntensity);
+  ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
+  state.fxEngine?.setPreset(state.fxPreset);
+  state.fxEngine?.setPostIntensity(state.fxIntensity);
   updateHitWindowUI();
   updateHitToleranceUI();
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
@@ -1484,6 +1522,9 @@ ui.scoreRecoveryPerSecond.max = String(SCORE_RECOVERY_PER_SECOND_MAX);
 ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
 ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
 ui.maxScore.value = String(state.maxScore);
+ui.fxPreset.value = state.fxPreset;
+ui.fxIntensity.value = String(state.fxIntensity);
+ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
 
 ui.startLevel.addEventListener('input', (e) => {
   state.startLevel = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
@@ -1548,6 +1589,26 @@ ui.maxScore.addEventListener('input', (e) => {
   state.displayedScoreTarget = clamp(state.displayedScoreTarget, 0, state.maxScore);
   saveSetting(STORAGE_KEYS.maxScore, state.maxScore);
   updateScoreUI();
+});
+
+ui.fxPreset.addEventListener('change', (e) => {
+  const nextPreset = e.target.value;
+  if (nextPreset !== 'minimal' && nextPreset !== 'neon' && nextPreset !== 'insane') return;
+  state.fxPreset = nextPreset;
+  state.fxEngine?.setPreset(state.fxPreset);
+  try {
+    window.localStorage.setItem(STORAGE_KEYS.fxPreset, state.fxPreset);
+  } catch (_error) {
+    // Ignore storage errors
+  }
+});
+
+ui.fxIntensity.addEventListener('input', (e) => {
+  state.fxIntensity = clamp(Number(Number(e.target.value).toFixed(2)), 0, 1.2);
+  ui.fxIntensity.value = String(state.fxIntensity);
+  ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
+  state.fxEngine?.setPostIntensity(state.fxIntensity);
+  saveSetting(STORAGE_KEYS.fxIntensity, state.fxIntensity);
 });
 
 ui.startGame.addEventListener('click', () => {

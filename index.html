@@ -73,6 +73,22 @@
           </label>
 
           <fieldset>
+            <legend>FX post-process</legend>
+            <label>
+              Preset:
+              <select id="fxPreset">
+                <option value="minimal">minimal</option>
+                <option value="neon">neon</option>
+                <option value="insane">insane</option>
+              </select>
+            </label>
+            <label>
+              Intensity: <span id="fxIntensityValue">0.8</span>
+              <input id="fxIntensity" type="range" min="0" max="1.2" step="0.05" value="0.8" />
+            </label>
+          </fieldset>
+
+          <fieldset>
             <legend>BPM by level endpoints</legend>
             <div class="dual-slider-row">
               <label>

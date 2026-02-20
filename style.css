@@ -506,6 +506,7 @@ summary {
   --score-color: var(--ok);
   --fill-height: 100%;
   --tap-saturation: 1;
+  --tap-zone-scale: 1;
   --tap-sat-transition-ms: 0ms;
   --tap-tilt-x: 0;
   --tap-tilt-y: 0;
@@ -528,7 +529,8 @@ summary {
     inset 0 0 42px color-mix(in srgb, white, transparent 88%),
     inset 0 -24px 30px color-mix(in srgb, hsl(var(--hue-accent) 72% 40%), transparent 76%),
     0 16px 42px color-mix(in srgb, black, transparent 62%);
-  transition: transform 100ms ease, background 140ms ease, border-color 140ms ease, box-shadow 160ms ease, filter var(--tap-sat-transition-ms) linear;
+  transform: scale(var(--tap-zone-scale));
+  transition: transform 180ms ease, background 140ms ease, border-color 140ms ease, box-shadow 160ms ease, filter var(--tap-sat-transition-ms) linear;
 }
 
 .tap-zone::before {
@@ -682,14 +684,16 @@ summary {
 
 .tap-zone.listen-muted {
   --tap-saturation: 0.2;
+  --tap-zone-scale: 0.95;
 }
 
 .tap-zone.listen-release {
   --tap-saturation: 1;
+  --tap-zone-scale: 1;
 }
 
 .tap-zone.active { border-color: color-mix(in srgb, var(--ok), white 25%); }
-.tap-zone.pressed { transform: scale(0.98); }
+.tap-zone.pressed { transform: scale(calc(var(--tap-zone-scale) * 0.98)); }
 .tap-zone.pattern-hit-flash {
   animation: patternHitFlash 150ms ease-out;
 }

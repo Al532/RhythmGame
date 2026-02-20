@@ -12,6 +12,11 @@
   --phase-sat-boost: 0%;
   --phase-light-boost: 0%;
   --fx-intensity: 1;
+  --ambient-layer-opacity: 0.5;
+  --ambient-layer-scale: 1;
+  --noise-opacity: 0.045;
+  --tap-ring-opacity: 0;
+  --tap-ring-scale: 0.92;
 }
 
 * {
@@ -21,6 +26,7 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  position: relative;
   background: radial-gradient(
     circle at top,
     hsl(var(--hue-primary) calc(42% + (var(--phase-sat-boost) * var(--fx-intensity))) calc(19% + (var(--phase-light-boost) * 0.6 * var(--fx-intensity)))),
@@ -42,6 +48,37 @@ body.fx-low {
   --fx-intensity: 0.35;
 }
 
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  z-index: -2;
+  opacity: var(--ambient-layer-opacity);
+  transform: scale(var(--ambient-layer-scale));
+  filter: blur(56px) saturate(1.25);
+  background:
+    radial-gradient(circle at 14% 18%, color-mix(in srgb, hsl(var(--hue-primary) 84% 62%), transparent 48%) 0, transparent 55%),
+    radial-gradient(circle at 85% 26%, color-mix(in srgb, hsl(var(--hue-secondary) 88% 60%), transparent 52%) 0, transparent 58%),
+    radial-gradient(circle at 35% 82%, color-mix(in srgb, hsl(var(--hue-accent) 88% 58%), transparent 56%) 0, transparent 62%);
+  animation: drift 28s ease-in-out infinite alternate;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+body::after {
+  z-index: -1;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 170px 170px;
+  mix-blend-mode: screen;
+  transition: opacity 240ms ease;
+}
+
 body.note-flash {
   animation: noteFlashBg 85ms ease-out;
 }
@@ -51,10 +88,32 @@ body.note-flash {
   to { filter: brightness(1); }
 }
 
+@keyframes drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(calc(var(--ambient-layer-scale) * 0.98));
+  }
+  to {
+    transform: translate3d(2%, 1%, 0) scale(calc(var(--ambient-layer-scale) * 1.02));
+  }
+}
+
+@keyframes tapPulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(var(--tap-ring-scale));
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(calc(var(--tap-ring-scale) + 0.055));
+  }
+}
+
+
 .app {
   width: min(900px, 100%);
   margin: 0 auto;
   padding: 1rem;
+  position: relative;
+  z-index: 1;
 }
 
 .screen {
@@ -91,7 +150,7 @@ body.note-flash {
   background: color-mix(
     in srgb,
     hsl(var(--hue-secondary) calc(24% + (var(--phase-sat-boost) * 0.4 * var(--fx-intensity))) calc(20% + (var(--phase-light-boost) * 0.35 * var(--fx-intensity)))),
-    var(--card) 55%
+    var(--card) 72%
   );
   border: 1px solid color-mix(in srgb, hsl(var(--hue-accent) 78% 66%), transparent 75%);
   border-radius: 14px;
@@ -207,6 +266,27 @@ summary {
   place-items: center;
   align-content: center;
   position: relative;
+  isolation: isolate;
+}
+
+.game-screen::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(460px, 96vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent), white 18%);
+  box-shadow:
+    0 0 0 18px color-mix(in srgb, var(--accent), transparent 90%),
+    0 0 80px color-mix(in srgb, var(--accent), transparent 70%);
+  opacity: var(--tap-ring-opacity);
+  transform: translate(-50%, -50%) scale(var(--tap-ring-scale));
+  pointer-events: none;
+  z-index: -1;
+  animation: tapPulse 1.35s ease-in-out infinite;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .stop-button {

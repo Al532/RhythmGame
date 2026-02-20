@@ -5,23 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
     <script>
-      window.APP_VERSION = "1.0.35";
-      window.withAppVersion = (assetPath) => `${assetPath}?v=${encodeURIComponent(window.APP_VERSION)}`;
+      window.APP_VERSION = "36";
     </script>
-    <link rel="stylesheet" data-asset="style" href="style.css" />
-    <link rel="modulepreload" data-asset="fx-webgl" href="fx-webgl.js" />
-    <script src="main.js" data-asset="main" defer></script>
-    <script>
-      const runtimeAssets = document.querySelectorAll('[data-asset][href], [data-asset][src]');
-      for (const asset of runtimeAssets) {
-        if (asset.hasAttribute('href')) {
-          asset.href = window.withAppVersion(asset.getAttribute('href'));
-        }
-        if (asset.hasAttribute('src')) {
-          asset.src = window.withAppVersion(asset.getAttribute('src'));
-        }
-      }
-    </script>
+    <link rel="stylesheet" href="style.css?v=36" />
+    <link rel="modulepreload" href="fx-webgl.js?v=36" />
+    <script src="main.js?v=36" defer></script>
   </head>
   <body>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>

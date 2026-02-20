@@ -235,6 +235,9 @@ const state = {
   scoreRegenTimer: null,
   listenSaturationStartTimer: null,
   listenSaturationEndTimer: null,
+  visualPhase: 0,
+  visualFxFrame: null,
+  visualFxLastTimestamp: null,
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
@@ -1021,6 +1024,45 @@ function updateScoreUI() {
   ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);
 }
 
+function updateVisualFx(timestamp, { force = false } = {}) {
+  const safeTimestamp = Number.isFinite(timestamp) ? timestamp : performance.now();
+  if (state.visualFxLastTimestamp === null) {
+    state.visualFxLastTimestamp = safeTimestamp;
+  }
+
+  const deltaSeconds = Math.max(0, (safeTimestamp - state.visualFxLastTimestamp) / 1000);
+  state.visualFxLastTimestamp = safeTimestamp;
+
+  const bpmForVisuals = state.isRunning ? state.liveBpm : state.bpm;
+  const beatsPerSecond = Math.max(0, bpmForVisuals / 60);
+  state.visualPhase = (state.visualPhase + (deltaSeconds * beatsPerSecond)) % 1;
+
+  const hue = (state.visualPhase * 360) % 360;
+  const reducedFx = document.body.classList.contains('fx-low');
+  const amplitude = reducedFx ? 0.35 : 1;
+  const phasePulse = Math.sin(state.visualPhase * Math.PI * 2);
+  const inTapPhase = state.livePhase === PHASE.TAP && state.isRunning;
+  const saturationBoost = ((inTapPhase ? 12 : 7) + (phasePulse * (inTapPhase ? 8 : 5))) * amplitude;
+  const lightnessBoost = ((inTapPhase ? 8 : 4) + (phasePulse * (inTapPhase ? 5 : 3))) * amplitude;
+
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--hue-primary', `${hue.toFixed(2)}deg`);
+  rootStyle.setProperty('--hue-secondary', `${((hue + 120) % 360).toFixed(2)}deg`);
+  rootStyle.setProperty('--hue-accent', `${((hue + 240) % 360).toFixed(2)}deg`);
+  rootStyle.setProperty('--phase-sat-boost', `${saturationBoost.toFixed(2)}%`);
+  rootStyle.setProperty('--phase-light-boost', `${lightnessBoost.toFixed(2)}%`);
+
+  if (!force && state.visualFxFrame !== null) {
+    state.visualFxFrame = requestAnimationFrame((nextTimestamp) => updateVisualFx(nextTimestamp));
+  }
+}
+
+function startVisualFxLoop() {
+  if (state.visualFxFrame !== null) return;
+  state.visualFxLastTimestamp = null;
+  state.visualFxFrame = requestAnimationFrame((timestamp) => updateVisualFx(timestamp));
+}
+
 function getTapZoneLabel() {
   if (!state.isRunning) return '';
   if (state.isIntroduction) return 'READY?';
@@ -1432,9 +1474,11 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 bindEndpointControls();
+startVisualFxLoop();
 updateHitWindowUI();
 updateHitToleranceUI();
 updateStaticUI();
 updateScoreUI();
+updateVisualFx(performance.now(), { force: true });
 showStartScreen();
 ui.appVersion.textContent = `v${APP_VERSION}`;

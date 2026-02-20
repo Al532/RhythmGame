@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.24';
+const APP_VERSION = window.APP_VERSION || '1.0.26';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -28,6 +28,11 @@ const MAX_SCORE_MAX = 10;
 const SCORE_RECOVERY_PER_SECOND_DEFAULT = 1;
 const SCORE_RECOVERY_PER_SECOND_MIN = 0;
 const SCORE_RECOVERY_PER_SECOND_MAX = 1;
+const FX_PARTICLE_POOL_SIZE = 84;
+const FX_RING_POOL_SIZE = 18;
+const FX_TRAIL_POOL_SIZE = 12;
+const FX_MAX_PARTICLES_PER_SECOND = 140;
+
 
 const FIRST_HIT_INDICES = [1, 2, 3];
 const FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0];
@@ -166,6 +171,7 @@ const ui = {
   testLog: document.getElementById('testLog'),
   tapZone: document.getElementById('tapZone'),
   tapZoneLabel: document.getElementById('tapZoneLabel'),
+  fxLayer: document.getElementById('fxLayer'),
   endpointInputs: [
     { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
     { input: document.getElementById('weightFirst2Level10'), value: document.getElementById('weightFirst2Level10Value'), key: 'first', level: 10, index: 0 },
@@ -238,6 +244,16 @@ const state = {
   visualPhase: 0,
   visualFxFrame: null,
   visualFxLastTimestamp: null,
+  visualHue: 220,
+
+  fxParticlePool: [],
+  fxRingPool: [],
+  fxTrailPool: [],
+  fxParticleCursor: 0,
+  fxRingCursor: 0,
+  fxTrailCursor: 0,
+  fxRateWindowStart: 0,
+  fxRateCount: 0,
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
@@ -594,8 +610,9 @@ function setScore(nextScore, reason) {
   }
 }
 
-function consumeScorePoint(reason) {
+function consumeScorePoint(reason, quality = 'late') {
   if (state.score <= 0) return;
+  emitHitFx({ quality, intensity: 0.9 });
   setScore(state.score - 1, reason);
 }
 
@@ -679,7 +696,7 @@ function markLiveMisses() {
       appendLog(
         `[MISS] note[${hit.idx + 1}] target=${formatSeconds(hit.targetTime)} now=${formatSeconds(adjustedNow)} delta=${formatErrorMs((adjustedNow - hit.targetTime) * 1000)}`
       );
-      consumeScorePoint(`missed note[${hit.idx + 1}]`);
+      consumeScorePoint(`missed note[${hit.idx + 1}]`, 'late');
     }
   });
 
@@ -782,6 +799,133 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
   }
 }
 
+
+function toHueValue(rawHue) {
+  if (typeof rawHue !== 'string') return state.visualHue;
+  const parsed = Number.parseFloat(rawHue);
+  return Number.isFinite(parsed) ? parsed : state.visualHue;
+}
+
+function getTimingQuality(errorMs = 0, toleranceMs = 1) {
+  const threshold = Math.max(8, toleranceMs * 0.35);
+  if (Math.abs(errorMs) <= threshold) return 'perfect';
+  return errorMs < 0 ? 'early' : 'late';
+}
+
+function getFxColor(quality = 'perfect') {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const baseHue = toHueValue(rootStyle.getPropertyValue('--hue-primary'));
+  const shifts = { perfect: 0, early: -28, late: 22 };
+  const hue = (baseHue + (shifts[quality] || 0) + 360) % 360;
+  const sat = quality === 'perfect' ? 92 : 84;
+  const light = quality === 'perfect' ? 68 : 61;
+  return `hsl(${hue.toFixed(1)} ${sat}% ${light}%)`;
+}
+
+function setupFxPool() {
+  if (!ui.fxLayer) return;
+
+  const create = (className, pool, size) => {
+    for (let i = 0; i < size; i += 1) {
+      const el = document.createElement('div');
+      el.className = className;
+      el.dataset.active = '0';
+      ui.fxLayer.appendChild(el);
+      pool.push(el);
+    }
+  };
+
+  create('fx-particle', state.fxParticlePool, FX_PARTICLE_POOL_SIZE);
+  create('fx-ring', state.fxRingPool, FX_RING_POOL_SIZE);
+  create('fx-trail', state.fxTrailPool, FX_TRAIL_POOL_SIZE);
+}
+
+function claimFromPool(pool, cursorKey) {
+  if (pool.length === 0) return null;
+  const index = state[cursorKey] % pool.length;
+  state[cursorKey] = (index + 1) % pool.length;
+  return pool[index];
+}
+
+function restartFxAnimation(node, animationValue) {
+  node.dataset.active = '1';
+  node.style.animation = 'none';
+  void node.offsetWidth;
+  node.style.animation = animationValue;
+}
+
+function releaseFxNode(node) {
+  node.dataset.active = '0';
+  node.style.animation = 'none';
+}
+
+function getAllowedParticles(requestedCount) {
+  const now = performance.now();
+  if (now - state.fxRateWindowStart >= 1000) {
+    state.fxRateWindowStart = now;
+    state.fxRateCount = 0;
+  }
+
+  const remaining = Math.max(0, FX_MAX_PARTICLES_PER_SECOND - state.fxRateCount);
+  const allowed = Math.min(requestedCount, remaining);
+  state.fxRateCount += allowed;
+  return allowed;
+}
+
+function emitHitFx({ quality = 'perfect', x = null, y = null, intensity = 1 } = {}) {
+  if (!ui.fxLayer || !ui.tapZone) return;
+
+  const rect = ui.tapZone.getBoundingClientRect();
+  const centerX = x ?? (rect.left + (rect.width / 2));
+  const centerY = y ?? (rect.top + (rect.height / 2));
+  const color = getFxColor(quality);
+  const intensityScale = clamp(intensity, 0.6, 1.4);
+
+  const requestedParticles = Math.round((quality === 'perfect' ? 11 : 8) * intensityScale);
+  const particleCount = getAllowedParticles(requestedParticles);
+
+  for (let i = 0; i < particleCount; i += 1) {
+    const p = claimFromPool(state.fxParticlePool, 'fxParticleCursor');
+    if (!p) break;
+    const angle = Math.random() * Math.PI * 2;
+    const distance = (24 + (Math.random() * 110)) * intensityScale;
+    const size = 4 + (Math.random() * 7);
+    const duration = 320 + (Math.random() * 320);
+
+    p.style.setProperty('--fx-x', centerX.toFixed(2));
+    p.style.setProperty('--fx-y', centerY.toFixed(2));
+    p.style.setProperty('--fx-dx', (Math.cos(angle) * distance).toFixed(2));
+    p.style.setProperty('--fx-dy', (Math.sin(angle) * distance).toFixed(2));
+    p.style.setProperty('--fx-size', `${size.toFixed(2)}px`);
+    p.style.setProperty('--fx-color', color);
+
+    restartFxAnimation(p, `fxParticleDecay ${duration.toFixed(0)}ms cubic-bezier(.2,.7,.2,1) forwards`);
+    setTimeout(() => releaseFxNode(p), duration + 24);
+  }
+
+  const ring = claimFromPool(state.fxRingPool, 'fxRingCursor');
+  if (ring) {
+    const duration = 380;
+    ring.style.setProperty('--fx-x', centerX.toFixed(2));
+    ring.style.setProperty('--fx-y', centerY.toFixed(2));
+    ring.style.setProperty('--fx-color', color);
+    ring.style.setProperty('--fx-ring-size', `${Math.max(rect.width, rect.height).toFixed(2)}px`);
+    restartFxAnimation(ring, `fxRingDecay ${duration}ms ease-out forwards`);
+    setTimeout(() => releaseFxNode(ring), duration + 24);
+  }
+
+  const trail = claimFromPool(state.fxTrailPool, 'fxTrailCursor');
+  if (trail) {
+    const duration = 260;
+    trail.style.setProperty('--fx-x', centerX.toFixed(2));
+    trail.style.setProperty('--fx-y', centerY.toFixed(2));
+    trail.style.setProperty('--fx-color', color);
+    trail.style.setProperty('--fx-trail-size', `${(Math.max(rect.width, rect.height) * 1.08).toFixed(2)}px`);
+    restartFxAnimation(trail, `fxTrailDecay ${duration}ms ease-out forwards`);
+    setTimeout(() => releaseFxNode(trail), duration + 24);
+  }
+}
+
 function triggerShortVibration(durationMs = 10) {
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
   navigator.vibrate(Math.max(1, Math.round(durationMs)));
@@ -797,6 +941,7 @@ function triggerTapZoneFeedback({ vibrate = false } = {}) {
 }
 
 function triggerBackgroundNoteFlash() {
+  emitHitFx({ quality: 'perfect', intensity: 0.8 });
   document.body.classList.remove('note-flash');
   // Force restart of a short animation on dense notes.
   void document.body.offsetWidth;
@@ -1060,6 +1205,7 @@ function updateVisualFx(timestamp, { force = false } = {}) {
   state.visualPhase = (state.visualPhase + (deltaSeconds * beatsPerSecond)) % 1;
 
   const hue = (state.visualPhase * 360) % 360;
+  state.visualHue = hue;
   const reducedFx = document.body.classList.contains('fx-low');
   const amplitude = reducedFx ? 0.35 : 1;
   const phasePulse = Math.sin(state.visualPhase * Math.PI * 2);
@@ -1227,8 +1373,11 @@ function recordTap() {
       const toleranceSec = getHitToleranceMs(state.liveBpm) / 1000;
       const errorSec = adjustedTapTime - hit.targetTime;
 
+      const quality = getTimingQuality(errorSec * 1000, toleranceSec * 1000);
+
       if (Math.abs(errorSec) <= toleranceSec) {
         hit.correct = true;
+        emitHitFx({ quality, intensity: quality === 'perfect' ? 1.2 : 1 });
         appendLog(
           `[OK] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
@@ -1237,7 +1386,7 @@ function recordTap() {
         appendLog(
           `[ERR timing] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
-        consumeScorePoint(`wrong timing note[${hit.idx + 1}] (${formatErrorMs(errorSec * 1000)})`);
+        consumeScorePoint(`wrong timing note[${hit.idx + 1}] (${formatErrorMs(errorSec * 1000)})`, quality);
       }
     } else {
       let scoreReason = '';
@@ -1256,7 +1405,7 @@ function recordTap() {
         );
         scoreReason = `false note entered[${closestIndex + 1}]`;
       }
-      consumeScorePoint(scoreReason);
+      consumeScorePoint(scoreReason, 'late');
     }
   } else {
     return;
@@ -1497,6 +1646,7 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 bindEndpointControls();
+setupFxPool();
 startVisualFxLoop();
 updateHitWindowUI();
 updateHitToleranceUI();

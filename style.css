@@ -35,6 +35,21 @@ body {
   transition: background 180ms ease;
 }
 
+
+#fxCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body.fx-webgl-enabled::before,
+body.fx-webgl-enabled::after {
+  opacity: 0.22;
+}
+
 body.tap-phase {
   background: radial-gradient(
     circle at top,

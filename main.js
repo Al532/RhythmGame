@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.27';
+const APP_VERSION = window.APP_VERSION || '1.0.28';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -59,6 +59,11 @@ const PHASE = {
   LISTEN: 'LISTEN',
   TAP: 'TAP',
   CALIBRATION: 'CALIBRATION'
+};
+
+const FX_PHASE = {
+  LISTEN: 'listen',
+  TAP: 'tap'
 };
 
 
@@ -167,6 +172,7 @@ const ui = {
   testLog: document.getElementById('testLog'),
   tapZone: document.getElementById('tapZone'),
   tapZoneLabel: document.getElementById('tapZoneLabel'),
+  fxCanvas: document.getElementById('fxCanvas'),
   endpointInputs: [
     { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
     { input: document.getElementById('weightFirst2Level10'), value: document.getElementById('weightFirst2Level10Value'), key: 'first', level: 10, index: 0 },
@@ -253,8 +259,72 @@ const state = {
   isIntroduction: false,
   completedPatternsInLevel: 0,
   startLevel: LEVEL_DEFAULT,
-  pendingBpmDisplayUpdate: false
+  pendingBpmDisplayUpdate: false,
+  fxEngine: null,
+  fxWebglEnabled: false
 };
+
+
+function createCssOnlyFxFallback() {
+  return {
+    setBpm() {},
+    setLevel() {},
+    setPhase() {},
+    pulseHit() {},
+    resize() {},
+    destroy() {}
+  };
+}
+
+function normalizePhaseForFx(phase) {
+  return phase === PHASE.TAP ? FX_PHASE.TAP : FX_PHASE.LISTEN;
+}
+
+function updateFxEngineState() {
+  if (!state.fxEngine) return;
+  const activeBpm = state.isRunning ? state.liveBpm : state.bpm;
+  const activeLevel = state.isRunning ? state.liveLevel : state.level;
+  const activePhase = normalizePhaseForFx(state.livePhase);
+  state.fxEngine.setBpm(activeBpm);
+  state.fxEngine.setLevel(activeLevel);
+  state.fxEngine.setPhase(activePhase);
+}
+
+function applyFxMode({ webglEnabled }) {
+  state.fxWebglEnabled = webglEnabled;
+  document.body.classList.toggle('fx-webgl-enabled', webglEnabled);
+  document.body.classList.toggle('fx-css-only', !webglEnabled);
+}
+
+async function initializeFxEngine() {
+  const fallback = createCssOnlyFxFallback();
+  const canvas = ui.fxCanvas;
+  if (!canvas) {
+    state.fxEngine = fallback;
+    applyFxMode({ webglEnabled: false });
+    return;
+  }
+
+  try {
+    const version = encodeURIComponent(APP_VERSION);
+    const fxModule = await import(`./fx-webgl.js?v=${version}`);
+    const engine = fxModule?.createWebglFx?.({ canvas }) ?? null;
+
+    if (!engine) {
+      state.fxEngine = fallback;
+      applyFxMode({ webglEnabled: false });
+      return;
+    }
+
+    state.fxEngine = engine;
+    applyFxMode({ webglEnabled: true });
+    updateFxEngineState();
+    state.fxEngine.resize(window.innerWidth, window.innerHeight);
+  } catch (_error) {
+    state.fxEngine = fallback;
+    applyFxMode({ webglEnabled: false });
+  }
+}
 
 function weightedChoice(values, weights) {
   const safeWeights = weights.map((weight) => Math.max(0, Number(weight) || 0));
@@ -329,6 +399,8 @@ function syncInterpolatedSettings({ updateBpmDisplay = true } = {}) {
     ui.bpmValue.textContent = String(state.bpm);
     state.pendingBpmDisplayUpdate = false;
   }
+
+  updateFxEngineState();
 }
 
 function applyPersistedSettings() {
@@ -740,6 +812,9 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
     }
 
     updateStaticUI();
+    state.fxEngine?.setBpm(bpmForMeasure);
+    state.fxEngine?.setLevel(levelForMeasure);
+    state.fxEngine?.setPhase(normalizePhaseForFx(phase));
 
     if (phase === PHASE.TAP) {
       clearListenSaturationTimers();
@@ -934,6 +1009,7 @@ function startEngine() {
   state.phase = PHASE.LISTEN;
   state.liveRepetition = 1;
   state.livePhase = PHASE.LISTEN;
+  state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   state.expectedHits = [];
   state.tapPattern = null;
   state.tapMeasureBpm = state.liveBpm;
@@ -984,6 +1060,7 @@ function stopEngine() {
   state.tapPattern = null;
   state.tapMeasureBpm = state.liveBpm;
   state.livePhase = PHASE.LISTEN;
+  state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
@@ -995,6 +1072,7 @@ function stopCalibration({ clearMessage = false } = {}) {
 
   state.isCalibrating = false;
   state.livePhase = PHASE.LISTEN;
+  state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   if (state.calibrationTimer !== null) {
     clearTimeout(state.calibrationTimer);
     state.calibrationTimer = null;
@@ -1172,6 +1250,7 @@ function startCalibration() {
   showGameScreen();
   state.isCalibrating = true;
   state.livePhase = PHASE.CALIBRATION;
+  state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   state.calibrationTargets = [];
   state.calibrationMatched = new Set();
   state.calibrationDelays = [];
@@ -1194,6 +1273,7 @@ function startCalibration() {
     state.calibrationTimer = null;
     state.isCalibrating = false;
     state.livePhase = PHASE.LISTEN;
+    state.fxEngine?.setPhase(FX_PHASE.LISTEN);
     applyCalibrationResult();
     cancelScheduledVoices();
     updateStaticUI();
@@ -1204,6 +1284,7 @@ function startCalibration() {
 function recordTap() {
   if (!state.audioCtx) return;
 
+  let pulseIntensity = 0.55;
   const tapTime = state.audioCtx.currentTime;
 
   if (state.isCalibrating) {
@@ -1223,11 +1304,13 @@ function recordTap() {
 
       if (Math.abs(errorSec) <= toleranceSec) {
         hit.correct = true;
+        pulseIntensity = 1;
         appendLog(
           `[OK] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
       } else {
         hit.correct = false;
+        pulseIntensity = 0.35;
         appendLog(
           `[ERR timing] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
@@ -1251,12 +1334,14 @@ function recordTap() {
         scoreReason = `false note entered[${closestIndex + 1}]`;
       }
       consumeScorePoint(scoreReason);
+      pulseIntensity = 0.28;
     }
   } else {
     return;
   }
 
   triggerTapZoneFeedback({ vibrate: true });
+  state.fxEngine?.pulseHit(pulseIntensity);
 
 }
 
@@ -1490,6 +1575,13 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('resize', () => {
+  state.fxEngine?.resize(window.innerWidth, window.innerHeight);
+});
+window.addEventListener('beforeunload', () => {
+  state.fxEngine?.destroy();
+});
+
 bindEndpointControls();
 startVisualFxLoop();
 updateHitWindowUI();
@@ -1499,3 +1591,4 @@ updateScoreUI();
 updateVisualFx(performance.now(), { force: true });
 showStartScreen();
 ui.appVersion.textContent = `v${APP_VERSION}`;
+initializeFxEngine();

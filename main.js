@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '52';
+const RUNTIME_ASSET_VERSION = '55';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -1421,8 +1421,10 @@ function stopCalibration({ clearMessage = false } = {}) {
 function updateScoreUI() {
   const ratio = clamp(state.displayedScore / state.maxScore, 0, 1);
   const hue = Math.round(ratio * 120);
+  const isScoreDropping = state.displayedScore > (state.displayedScoreTarget + 0.001);
   ui.tapZone.style.setProperty('--fill-height', `${Math.round(ratio * 100)}%`);
   ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);
+  ui.tapZone.classList.toggle('score-dropping', isScoreDropping);
 }
 
 function updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForVisuals }) {

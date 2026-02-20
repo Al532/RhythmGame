@@ -714,6 +714,10 @@ summary {
   box-shadow: 0 0 0 6px color-mix(in srgb, #ff6a83, transparent 84%), 0 0 34px color-mix(in srgb, #ff6a83, transparent 62%);
 }
 
+.tap-zone.score-dropping {
+  border-color: color-mix(in srgb, #ff6a83, white 12%);
+}
+
 .result-screen {
   min-height: calc(100vh - 2rem);
   place-items: center;

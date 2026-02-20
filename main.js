@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '39';
+const RUNTIME_ASSET_VERSION = '40';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -18,6 +18,9 @@ const HIT_TOLERANCE_MIN = 0;
 const HIT_TOLERANCE_MAX = 100;
 const HIT_WINDOW_DEFAULT_MS = 250;
 const HIT_WINDOW_MAX_MS = 250;
+const PERFECT_WINDOW_DEFAULT_MS = 30;
+const PERFECT_WINDOW_MIN_MS = 10;
+const PERFECT_WINDOW_MAX_MS = 80;
 const CALIBRATION_BPM = 60;
 const CALIBRATION_BEATS = 16;
 const CALIBRATION_MAX_DELAY_MS = 500;
@@ -90,6 +93,7 @@ const STORAGE_KEYS = {
   latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
   hitTolerance: 'rhythmTrainer.hitTolerance',
   hitWindowMs: 'rhythmTrainer.hitWindowMs',
+  perfectWindowMs: 'rhythmTrainer.perfectWindowMs',
   scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond',
   maxScore: 'rhythmTrainer.maxScore',
   fxPreset: 'rhythmTrainer.fxPreset',
@@ -183,6 +187,8 @@ const ui = {
   hitToleranceDisplay: document.getElementById('hitToleranceDisplay'),
   hitWindow: document.getElementById('hitWindow'),
   hitWindowDisplay: document.getElementById('hitWindowDisplay'),
+  perfectWindowMs: document.getElementById('perfectWindowMs'),
+  perfectWindowDisplay: document.getElementById('perfectWindowDisplay'),
   scoreRecoveryPerSecond: document.getElementById('scoreRecoveryPerSecond'),
   scoreRecoveryPerSecondValue: document.getElementById('scoreRecoveryPerSecondValue'),
   maxScore: document.getElementById('maxScore'),
@@ -242,6 +248,7 @@ const state = {
   latencyOffsetMs: INPUT_LATENCY_DEFAULT_MS,
   hitTolerance: HIT_TOLERANCE_DEFAULT,
   hitWindowMs: HIT_WINDOW_DEFAULT_MS,
+  perfectWindowMs: PERFECT_WINDOW_DEFAULT_MS,
   scoreRecoveryPerSecond: SCORE_RECOVERY_PER_SECOND_DEFAULT,
 
   firstHitWeightsLevel1: [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT],
@@ -508,6 +515,16 @@ function updateHitWindowUI() {
   ui.hitWindowDisplay.textContent = String(state.hitWindowMs);
 }
 
+
+function updatePerfectWindowUI() {
+  const effectiveMax = Math.max(PERFECT_WINDOW_MAX_MS, 1);
+  state.perfectWindowMs = clamp(Math.round(state.perfectWindowMs), PERFECT_WINDOW_MIN_MS, effectiveMax);
+  ui.perfectWindowMs.min = String(PERFECT_WINDOW_MIN_MS);
+  ui.perfectWindowMs.max = String(effectiveMax);
+  ui.perfectWindowMs.value = String(state.perfectWindowMs);
+  ui.perfectWindowDisplay.textContent = String(state.perfectWindowMs);
+}
+
 function syncInterpolatedSettings({ updateBpmDisplay = true } = {}) {
   const factor = getInterpolationFactor(state.level);
   state.bpm = interpolateRounded(state.bpmLevel1, state.bpmLevel10, factor);
@@ -594,6 +611,11 @@ function applyPersistedSettings() {
   const storedHitWindowMs = loadStoredNumber(STORAGE_KEYS.hitWindowMs);
   if (storedHitWindowMs !== null) {
     state.hitWindowMs = Math.round(storedHitWindowMs);
+  }
+
+  const storedPerfectWindowMs = loadStoredNumber(STORAGE_KEYS.perfectWindowMs);
+  if (storedPerfectWindowMs !== null) {
+    state.perfectWindowMs = Math.round(storedPerfectWindowMs);
   }
 
   const storedScoreRecoveryPerSecond = loadStoredNumber(STORAGE_KEYS.scoreRecoveryPerSecond);
@@ -1520,11 +1542,11 @@ function recordTap() {
 
       if (Math.abs(errorSec) <= toleranceSec) {
         hit.correct = true;
-        const perfectWindowSec = Math.min(0.03, toleranceSec * 0.4);
+        const perfectWindowSec = state.perfectWindowMs / 1000;
         const isPerfect = Math.abs(errorSec) <= perfectWindowSec;
         pulseIntensity = isPerfect ? 1.25 : 1;
         appendLog(
-          `[OK] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
+          `${isPerfect ? '[PERFECT]' : '[OK]'} note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
       } else {
         hit.correct = false;
@@ -1576,6 +1598,7 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.latencyOffsetMs);
     window.localStorage.removeItem(STORAGE_KEYS.hitTolerance);
     window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
+    window.localStorage.removeItem(STORAGE_KEYS.perfectWindowMs);
     window.localStorage.removeItem(STORAGE_KEYS.scoreRecoveryPerSecond);
     window.localStorage.removeItem(STORAGE_KEYS.maxScore);
     window.localStorage.removeItem(STORAGE_KEYS.fxPreset);
@@ -1603,6 +1626,7 @@ function clearLocalCache() {
   state.latencyOffsetMs = INPUT_LATENCY_DEFAULT_MS;
   state.hitTolerance = HIT_TOLERANCE_DEFAULT;
   state.hitWindowMs = HIT_WINDOW_DEFAULT_MS;
+  state.perfectWindowMs = PERFECT_WINDOW_DEFAULT_MS;
   state.scoreRecoveryPerSecond = SCORE_RECOVERY_PER_SECOND_DEFAULT;
   state.maxScore = MAX_SCORE_DEFAULT;
   state.fxPreset = 'minimal';
@@ -1631,6 +1655,7 @@ function clearLocalCache() {
   ui.latency.value = String(state.latencyOffsetMs);
   ui.latencyValue.textContent = String(state.latencyOffsetMs);
   ui.hitTolerance.value = String(state.hitTolerance);
+  ui.perfectWindowMs.value = String(state.perfectWindowMs);
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
   ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
   ui.maxScore.value = String(state.maxScore);
@@ -1641,6 +1666,7 @@ function clearLocalCache() {
   reapplyVisualFxFlags();
   updateHitWindowUI();
   updateHitToleranceUI();
+  updatePerfectWindowUI();
   ui.calibrationResult.textContent = 'Paramètres réinitialisés.';
 }
 
@@ -1706,6 +1732,9 @@ ui.latencyValue.textContent = String(state.latencyOffsetMs);
 ui.hitTolerance.min = String(HIT_TOLERANCE_MIN);
 ui.hitTolerance.max = String(HIT_TOLERANCE_MAX);
 ui.hitTolerance.value = String(state.hitTolerance);
+ui.perfectWindowMs.min = String(PERFECT_WINDOW_MIN_MS);
+ui.perfectWindowMs.max = String(PERFECT_WINDOW_MAX_MS);
+ui.perfectWindowMs.value = String(state.perfectWindowMs);
 ui.scoreRecoveryPerSecond.min = String(SCORE_RECOVERY_PER_SECOND_MIN);
 ui.scoreRecoveryPerSecond.max = String(SCORE_RECOVERY_PER_SECOND_MAX);
 ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
@@ -1729,6 +1758,7 @@ ui.bpmLevel1.addEventListener('input', (e) => {
   syncInterpolatedSettings();
   updateHitWindowUI();
   updateHitToleranceUI();
+  updatePerfectWindowUI();
 });
 
 ui.bpmLevel10.addEventListener('input', (e) => {
@@ -1738,6 +1768,7 @@ ui.bpmLevel10.addEventListener('input', (e) => {
   syncInterpolatedSettings();
   updateHitWindowUI();
   updateHitToleranceUI();
+  updatePerfectWindowUI();
 });
 
 ui.latency.addEventListener('input', (e) => {
@@ -1760,6 +1791,12 @@ ui.hitTolerance.addEventListener('input', (e) => {
   state.hitTolerance = clamp(Number(e.target.value), HIT_TOLERANCE_MIN, HIT_TOLERANCE_MAX);
   saveSetting(STORAGE_KEYS.hitTolerance, state.hitTolerance);
   updateHitToleranceUI();
+});
+
+ui.perfectWindowMs.addEventListener('input', (e) => {
+  state.perfectWindowMs = clamp(Number(e.target.value), PERFECT_WINDOW_MIN_MS, PERFECT_WINDOW_MAX_MS);
+  saveSetting(STORAGE_KEYS.perfectWindowMs, state.perfectWindowMs);
+  updatePerfectWindowUI();
 });
 
 ui.scoreRecoveryPerSecond.addEventListener('input', (e) => {
@@ -1865,6 +1902,7 @@ bindEndpointControls();
 startVisualFxLoop();
 updateHitWindowUI();
 updateHitToleranceUI();
+updatePerfectWindowUI();
 updateStaticUI();
 updateScoreUI();
 updateVisualFx(performance.now(), { force: true });

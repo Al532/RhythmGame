@@ -21,6 +21,7 @@ uniform float u_hitPulse;
 uniform float u_beatPulse;
 uniform float u_safeMode;
 uniform float u_effectBoost;
+uniform float u_hitCategory;
 
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -79,6 +80,12 @@ void main() {
   vec3 phaseColor = mix(listenColor, tapColor, clamp(u_phase, 0.0, 1.0));
 
   vec3 accent = mix(vec3(0.26, 0.58, 0.96), vec3(0.65, 0.30, 0.92), levelMix);
+  vec3 categoryColor = accent;
+  if (u_hitCategory > 1.5) {
+    categoryColor = vec3(0.98, 0.30, 0.36);
+  } else if (u_hitCategory > 0.5) {
+    categoryColor = vec3(0.28, 0.74, 1.0);
+  }
   vec3 nebulaColor = mix(vec3(0.08, 0.10, 0.20), accent, clamp((nebula * 0.9) + (nebulaLayer * 0.7), 0.0, 1.0));
   vec3 kaleidoColor = accent * (0.18 + 0.35 * smoothstep(0.42, 0.0, kaleido + radius * 0.05));
 
@@ -86,10 +93,13 @@ void main() {
   float pulseGlow = exp(-radius * (3.0 + (pulseEnergy * 2.0))) * pulseEnergy;
   float vignette = smoothstep(1.15, 0.18, radius);
 
+  vec3 hitFlash = categoryColor * pulseGlow * (0.9 + pulseEnergy * 0.8);
+
   vec3 color = (phaseColor * 0.38)
     + (nebulaColor * (0.58 + 0.22 * beatWave))
     + (kaleidoColor * (0.35 + 0.25 * u_beatPulse))
     + (accent * pulseGlow * 0.85)
+    + hitFlash
     + vec3(starField * (0.35 + 0.35 * u_beatPulse));
 
   float contrast = mix(1.0, 0.72, safeMix);
@@ -288,7 +298,8 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     hitPulse: gl.getUniformLocation(baseProgram, 'u_hitPulse'),
     beatPulse: gl.getUniformLocation(baseProgram, 'u_beatPulse'),
     safeMode: gl.getUniformLocation(baseProgram, 'u_safeMode'),
-    effectBoost: gl.getUniformLocation(baseProgram, 'u_effectBoost')
+    effectBoost: gl.getUniformLocation(baseProgram, 'u_effectBoost'),
+    hitCategory: gl.getUniformLocation(baseProgram, 'u_hitCategory')
   };
 
   const postUniforms = {
@@ -322,6 +333,8 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     beatPulse: 0,
     beatBoost: 0,
     perfectBoost: 0,
+    hitCategory: -1,
+    hitCategoryCurrent: -1,
     safeMode: Boolean(safeMode),
     safeModeCurrent: safeMode ? 1 : 0,
     beatIndex: -1,
@@ -376,6 +389,8 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     state.beatPulse *= 0.9;
     state.beatBoost *= 0.78;
     state.perfectBoost *= 0.76;
+    state.hitCategoryCurrent += (state.hitCategory - state.hitCategoryCurrent) * 0.2;
+    state.hitCategory *= 0.85;
 
     const beatsPerSecond = Math.max(0.1, state.bpmCurrent / 60);
     const currentBeat = Math.floor(elapsed * beatsPerSecond);
@@ -406,6 +421,7 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     gl.uniform1f(baseUniforms.beatPulse, state.beatPulse);
     gl.uniform1f(baseUniforms.safeMode, state.safeModeCurrent);
     gl.uniform1f(baseUniforms.effectBoost, effectBoost);
+    gl.uniform1f(baseUniforms.hitCategory, state.hitCategoryCurrent);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Pass 2: post-process fullscreen quad to canvas
@@ -461,6 +477,10 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
       if (options && options.perfect) {
         state.perfectBoost = Math.max(state.perfectBoost, state.safeMode ? 0.28 : 0.75);
       }
+      const category = options?.category;
+      if (category === 'missed') state.hitCategory = 2;
+      else if (category === 'correct') state.hitCategory = 1;
+      else if (category === 'perfect') state.hitCategory = 0;
     },
     setSafeMode(enabled) {
       state.safeMode = Boolean(enabled);

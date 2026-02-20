@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '40';
+const RUNTIME_ASSET_VERSION = '41';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -69,6 +69,12 @@ const PHASE = {
 const FX_PHASE = {
   LISTEN: 'listen',
   TAP: 'tap'
+};
+
+const HIT_CATEGORY = {
+  PERFECT: 'perfect',
+  CORRECT: 'correct',
+  MISSED: 'missed'
 };
 
 const DEFAULT_VISUAL_FX_FLAGS = Object.freeze({
@@ -1074,8 +1080,15 @@ function triggerShortVibration(durationMs = 10) {
   navigator.vibrate(Math.max(1, Math.round(durationMs)));
 }
 
-function triggerTapZoneFeedback({ vibrate = false } = {}) {
+function triggerTapZoneFeedback({ vibrate = false, category = null } = {}) {
   ui.tapZone.classList.add('pressed');
+  ui.tapZone.classList.remove('perfect', 'correct', 'missed');
+  if (category && Object.values(HIT_CATEGORY).includes(category)) {
+    ui.tapZone.classList.add(category);
+    setTimeout(() => {
+      ui.tapZone.classList.remove(category);
+    }, 220);
+  }
   setTimeout(() => ui.tapZone.classList.remove('pressed'), 120);
 
   if (vibrate) {
@@ -1511,6 +1524,7 @@ function recordTap() {
   if (!state.audioCtx) return;
 
   let pulseIntensity = 0.55;
+  let hitCategory = HIT_CATEGORY.CORRECT;
   const tapTime = state.audioCtx.currentTime;
 
   if (state.isCalibrating) {
@@ -1524,8 +1538,9 @@ function recordTap() {
       );
       consumeScorePoint('tap after TAP phase end');
       pulseIntensity = 0.28;
-      triggerTapZoneFeedback({ vibrate: true });
-      state.fxEngine?.pulseHit(pulseIntensity, { perfect: false });
+      hitCategory = HIT_CATEGORY.MISSED;
+      triggerTapZoneFeedback({ vibrate: true, category: hitCategory });
+      state.fxEngine?.pulseHit(pulseIntensity, { perfect: false, category: hitCategory });
       return;
     }
 
@@ -1545,12 +1560,14 @@ function recordTap() {
         const perfectWindowSec = state.perfectWindowMs / 1000;
         const isPerfect = Math.abs(errorSec) <= perfectWindowSec;
         pulseIntensity = isPerfect ? 1.25 : 1;
+        hitCategory = isPerfect ? HIT_CATEGORY.PERFECT : HIT_CATEGORY.CORRECT;
         appendLog(
           `${isPerfect ? '[PERFECT]' : '[OK]'} note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
       } else {
         hit.correct = false;
         pulseIntensity = 0.35;
+        hitCategory = HIT_CATEGORY.MISSED;
         appendLog(
           `[ERR timing] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
@@ -1575,13 +1592,17 @@ function recordTap() {
       }
       consumeScorePoint(scoreReason);
       pulseIntensity = 0.28;
+      hitCategory = HIT_CATEGORY.MISSED;
     }
   } else {
     return;
   }
 
-  triggerTapZoneFeedback({ vibrate: true });
-  state.fxEngine?.pulseHit(pulseIntensity, { perfect: pulseIntensity > 1.1 });
+  triggerTapZoneFeedback({ vibrate: true, category: hitCategory });
+  state.fxEngine?.pulseHit(pulseIntensity, {
+    perfect: hitCategory === HIT_CATEGORY.PERFECT,
+    category: hitCategory
+  });
 
 }
 

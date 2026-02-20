@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '37';
+const RUNTIME_ASSET_VERSION = '39';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -74,7 +74,8 @@ const DEFAULT_VISUAL_FX_FLAGS = Object.freeze({
   tapRing: true,
   hueShift: true,
   webglPost: true,
-  webglEngine: true
+  webglEngine: true,
+  backgroundGradient: true
 });
 
 
@@ -98,7 +99,8 @@ const STORAGE_KEYS = {
   fxToggleTapRing: 'rhythmTrainer.fxToggleTapRing',
   fxToggleHueShift: 'rhythmTrainer.fxToggleHueShift',
   fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost',
-  fxToggleWebglEngine: 'rhythmTrainer.fxToggleWebglEngine'
+  fxToggleWebglEngine: 'rhythmTrainer.fxToggleWebglEngine',
+  fxToggleBackground: 'rhythmTrainer.fxToggleBackground'
 };
 
 function getInterpolationFactor(level = LEVEL_DEFAULT) {
@@ -199,6 +201,7 @@ const ui = {
   fxToggleNoise: document.getElementById('fxToggleNoise'),
   fxToggleTapRing: document.getElementById('fxToggleTapRing'),
   fxToggleHueShift: document.getElementById('fxToggleHueShift'),
+  fxToggleBackground: document.getElementById('fxToggleBackground'),
   fxToggleWebglEngine: document.getElementById('fxToggleWebglEngine'),
   fxToggleWebglPost: document.getElementById('fxToggleWebglPost'),
   endpointInputs: [
@@ -351,6 +354,8 @@ function applyCssFxFlags() {
   document.body.classList.toggle('fx-tap-ring-enabled', state.visualFxFlags.tapRing);
   document.body.classList.toggle('fx-hue-shift-enabled', state.visualFxFlags.hueShift);
   document.body.classList.toggle('fx-css-noise-enabled', shouldUseCssNoiseLayer());
+
+  document.body.classList.toggle('fx-background-enabled', state.visualFxFlags.backgroundGradient);
 }
 
 function applyWebglFxFlags() {
@@ -539,6 +544,7 @@ function setFxToggleInputsFromState() {
   ui.fxToggleHueShift.checked = state.visualFxFlags.hueShift;
   ui.fxToggleWebglEngine.checked = state.visualFxFlags.webglEngine;
   ui.fxToggleWebglPost.checked = state.visualFxFlags.webglPost;
+  ui.fxToggleBackground.checked = state.visualFxFlags.backgroundGradient;
 }
 
 function applyPersistedSettings() {
@@ -624,6 +630,7 @@ function applyPersistedSettings() {
   state.visualFxFlags.hueShift = readStoredFxFlag(STORAGE_KEYS.fxToggleHueShift);
   state.visualFxFlags.webglEngine = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglEngine);
   state.visualFxFlags.webglPost = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglPost);
+  state.visualFxFlags.backgroundGradient = readStoredFxFlag(STORAGE_KEYS.fxToggleBackground);
 
   syncInterpolatedSettings();
 }
@@ -1579,6 +1586,7 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleHueShift);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglEngine);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglPost);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleBackground);
   } catch (_error) {
     // Ignore storage errors
   }
@@ -1799,6 +1807,7 @@ const FX_TOGGLE_CONFIG = [
   { input: ui.fxToggleNoise, flag: 'noise', storageKey: STORAGE_KEYS.fxToggleNoise },
   { input: ui.fxToggleTapRing, flag: 'tapRing', storageKey: STORAGE_KEYS.fxToggleTapRing },
   { input: ui.fxToggleHueShift, flag: 'hueShift', storageKey: STORAGE_KEYS.fxToggleHueShift },
+  { input: ui.fxToggleBackground, flag: 'backgroundGradient', storageKey: STORAGE_KEYS.fxToggleBackground },
   { input: ui.fxToggleWebglEngine, flag: 'webglEngine', storageKey: STORAGE_KEYS.fxToggleWebglEngine },
   { input: ui.fxToggleWebglPost, flag: 'webglPost', storageKey: STORAGE_KEYS.fxToggleWebglPost }
 ];

@@ -78,7 +78,6 @@ const HIT_CATEGORY = {
 };
 
 const DEFAULT_VISUAL_FX_FLAGS = Object.freeze({
-  hueShift: true,
   webglPost: true,
   webglEngine: true,
   backgroundGradient: true
@@ -101,7 +100,6 @@ const STORAGE_KEYS = {
   maxScore: 'rhythmTrainer.maxScore',
   fxPreset: 'rhythmTrainer.fxPreset',
   fxIntensity: 'rhythmTrainer.fxIntensity',
-  fxToggleHueShift: 'rhythmTrainer.fxToggleHueShift',
   fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost',
   fxToggleWebglEngine: 'rhythmTrainer.fxToggleWebglEngine',
   fxToggleBackground: 'rhythmTrainer.fxToggleBackground'
@@ -206,7 +204,6 @@ const ui = {
   fxPreset: document.getElementById('fxPreset'),
   fxIntensity: document.getElementById('fxIntensity'),
   fxIntensityValue: document.getElementById('fxIntensityValue'),
-  fxToggleHueShift: document.getElementById('fxToggleHueShift'),
   fxToggleBackground: document.getElementById('fxToggleBackground'),
   fxToggleWebglEngine: document.getElementById('fxToggleWebglEngine'),
   fxToggleWebglPost: document.getElementById('fxToggleWebglPost'),
@@ -288,7 +285,6 @@ const state = {
   visualPhase: 0,
   visualFxFrame: null,
   visualFxLastTimestamp: null,
-  visualHue: 220,
 
   calibrationTargets: [],
   calibrationMatched: new Set(),
@@ -365,7 +361,6 @@ function shouldUseCssNoiseLayer() {
 }
 
 function applyCssFxFlags() {
-  document.body.classList.toggle('fx-hue-shift-enabled', state.visualFxFlags.hueShift);
   document.body.classList.toggle('fx-css-noise-enabled', shouldUseCssNoiseLayer());
 
   document.body.classList.toggle('fx-background-enabled', state.visualFxFlags.backgroundGradient);
@@ -561,7 +556,6 @@ function readStoredFxFlag(key) {
 }
 
 function setFxToggleInputsFromState() {
-  ui.fxToggleHueShift.checked = state.visualFxFlags.hueShift;
   ui.fxToggleWebglEngine.checked = state.visualFxFlags.webglEngine;
   ui.fxToggleWebglPost.checked = state.visualFxFlags.webglPost;
   ui.fxToggleBackground.checked = state.visualFxFlags.backgroundGradient;
@@ -649,7 +643,6 @@ function applyPersistedSettings() {
     state.fxIntensity = clamp(Number(storedFxIntensity.toFixed(2)), 0, 1.2);
   }
 
-  state.visualFxFlags.hueShift = readStoredFxFlag(STORAGE_KEYS.fxToggleHueShift);
   state.visualFxFlags.webglEngine = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglEngine);
   state.visualFxFlags.webglPost = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglPost);
   state.visualFxFlags.backgroundGradient = readStoredFxFlag(STORAGE_KEYS.fxToggleBackground);
@@ -1018,6 +1011,16 @@ function triggerTapLabelPulse() {
   }, 260);
 }
 
+function scheduleTapLabelPulseForPatternHit(eventTime) {
+  if (!state.audioCtx) return;
+  const anticipatoryLeadMs = 140;
+  const delayMs = Math.max(0, ((eventTime - state.audioCtx.currentTime) * 1000) - anticipatoryLeadMs);
+  setTimeout(() => {
+    if (!state.isRunning || state.livePhase !== PHASE.TAP) return;
+    triggerTapLabelPulse();
+  }, delayMs);
+}
+
 function showTapJudgement(category) {
   if (!ui.tapJudgement) return;
 
@@ -1128,6 +1131,10 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
           triggerTapZoneFeedback({ vibrate: true });
         }
       }, feedbackDelayMs);
+
+      if (phase === PHASE.TAP) {
+        scheduleTapLabelPulseForPatternHit(eventTime);
+      }
     }
 
     if (idx % 4 === 0) playKick(eventTime);
@@ -1443,8 +1450,6 @@ function updateVisualFx(timestamp, { force = false } = {}) {
   const beatsPerSecond = Math.max(0, bpmForVisuals / 60);
   state.visualPhase = (state.visualPhase + (deltaSeconds * beatsPerSecond)) % 1;
 
-  const hue = (state.visualPhase * 360) % 360;
-  state.visualHue = hue;
   const reducedFx = document.body.classList.contains('fx-low');
   const amplitude = reducedFx ? 0.35 : 1;
   const phasePulse = Math.sin(state.visualPhase * Math.PI * 2);
@@ -1453,14 +1458,11 @@ function updateVisualFx(timestamp, { force = false } = {}) {
   const lightnessBoost = ((inTapPhase ? 8 : 4) + (phasePulse * (inTapPhase ? 5 : 3))) * amplitude;
 
   const rootStyle = document.documentElement.style;
-  const huePrimary = state.visualFxFlags.hueShift ? hue : 220;
-  const hueSecondary = state.visualFxFlags.hueShift ? ((hue + 120) % 360) : 340;
-  const hueAccent = state.visualFxFlags.hueShift ? ((hue + 240) % 360) : 100;
-  rootStyle.setProperty('--hue-primary', `${huePrimary.toFixed(2)}deg`);
-  rootStyle.setProperty('--hue-secondary', `${hueSecondary.toFixed(2)}deg`);
-  rootStyle.setProperty('--hue-accent', `${hueAccent.toFixed(2)}deg`);
-  rootStyle.setProperty('--phase-sat-boost', state.visualFxFlags.hueShift ? `${saturationBoost.toFixed(2)}%` : '0%');
-  rootStyle.setProperty('--phase-light-boost', state.visualFxFlags.hueShift ? `${lightnessBoost.toFixed(2)}%` : '0%');
+  rootStyle.setProperty('--hue-primary', '220deg');
+  rootStyle.setProperty('--hue-secondary', '340deg');
+  rootStyle.setProperty('--hue-accent', '100deg');
+  rootStyle.setProperty('--phase-sat-boost', `${saturationBoost.toFixed(2)}%`);
+  rootStyle.setProperty('--phase-light-boost', `${lightnessBoost.toFixed(2)}%`);
   updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForVisuals });
 
   if (!force && state.visualFxFrame !== null) {
@@ -1646,7 +1648,6 @@ function recordTap() {
         const isPerfect = Math.abs(errorSec) <= perfectWindowSec;
         pulseIntensity = isPerfect ? 1.25 : 1;
         hitCategory = isPerfect ? HIT_CATEGORY.PERFECT : HIT_CATEGORY.CORRECT;
-        triggerTapLabelPulse();
         showTapJudgement(hitCategory);
         appendLog(
           `${isPerfect ? '[PERFECT]' : '[OK]'} note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
@@ -1713,7 +1714,6 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.maxScore);
     window.localStorage.removeItem(STORAGE_KEYS.fxPreset);
     window.localStorage.removeItem(STORAGE_KEYS.fxIntensity);
-    window.localStorage.removeItem(STORAGE_KEYS.fxToggleHueShift);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglEngine);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglPost);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleBackground);
@@ -1947,7 +1947,6 @@ ui.fxIntensity.addEventListener('input', (e) => {
 
 
 const FX_TOGGLE_CONFIG = [
-  { input: ui.fxToggleHueShift, flag: 'hueShift', storageKey: STORAGE_KEYS.fxToggleHueShift },
   { input: ui.fxToggleBackground, flag: 'backgroundGradient', storageKey: STORAGE_KEYS.fxToggleBackground },
   { input: ui.fxToggleWebglEngine, flag: 'webglEngine', storageKey: STORAGE_KEYS.fxToggleWebglEngine },
   { input: ui.fxToggleWebglPost, flag: 'webglPost', storageKey: STORAGE_KEYS.fxToggleWebglPost }

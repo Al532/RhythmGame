@@ -80,13 +80,6 @@ body.tap-phase.fx-background-enabled {
 
 
 
-
-body:not(.fx-hue-shift-enabled) {
-  --phase-sat-boost: 0%;
-  --phase-light-boost: 0%;
-}
-
-
 @keyframes patternHitFlash {
   0% {
     filter: brightness(1.16) saturate(calc(var(--tap-saturation) + 0.15));

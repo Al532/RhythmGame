@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '61';
+const RUNTIME_ASSET_VERSION = '62';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -862,7 +862,7 @@ function startMusicPlayback(referenceStartTime) {
   const stopWithVictory = () => {
     if (!state.isRunning || !state.isMusicMode) return;
     stopEngine();
-    showResultScreen('Victory!', 'Niveau musical terminé.');
+    showResultScreen('Victory!', 'Mode Experimental terminé.');
   };
 
   musicAudio.onended = stopWithVictory;
@@ -1076,7 +1076,7 @@ function setScore(nextScore, reason) {
   if (state.score <= 0) {
     stopEngine();
     const gameOverMessage = state.isMusicMode
-      ? `Niveau musical perdu avant la fin (niveau ${state.level}).`
+      ? 'Mode Experimental perdu avant la fin.'
       : `You reached level ${state.level}.`;
     showResultScreen('Game Over', gameOverMessage);
   }
@@ -1514,14 +1514,19 @@ function scheduleLoop() {
 
         if (state.completedPatternsInLevel >= PATTERNS_PER_LEVEL) {
           state.completedPatternsInLevel = 0;
+          if (state.isMusicMode) {
+            initializeLevelPatternSequence();
+            appendLog(`[NEW pattern sequence] mode=experimental pattern=${formatPattern(state.pattern)}`);
+            continue;
+          }
           const repeatCurrentLevel = shouldRepeatCurrentLevel();
-          if (!state.isMusicMode && state.level >= LEVEL_MAX && !repeatCurrentLevel) {
+          if (state.level >= LEVEL_MAX && !repeatCurrentLevel) {
             stopEngine();
             showResultScreen('Victory!', 'You finished level 10.');
             return;
           }
           const previousLevel = state.level;
-          if (!state.isMusicMode && !repeatCurrentLevel && state.level < LEVEL_MAX) {
+          if (!repeatCurrentLevel && state.level < LEVEL_MAX) {
             state.level += 1;
           }
           syncInterpolatedSettings({ updateBpmDisplay: false });
@@ -1594,7 +1599,7 @@ function startEngine({ musicMode = false } = {}) {
 
   resetLog();
   appendLog(
-    `[GAME start] mode=${state.isMusicMode ? 'music' : 'classic'} lvl=${state.level} bpm=${state.bpm} latency=${state.latencyOffsetMs}ms hitWindow=${state.hitWindowMs}ms tolerance=${Math.round(getHitToleranceMs(state.bpm))}ms`
+    `[GAME start] mode=${state.isMusicMode ? 'experimental' : 'classic'} lvl=${state.level} bpm=${state.bpm} latency=${state.latencyOffsetMs}ms hitWindow=${state.hitWindowMs}ms tolerance=${Math.round(getHitToleranceMs(state.bpm))}ms`
   );
 
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);

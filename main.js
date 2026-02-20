@@ -1024,6 +1024,28 @@ function updateScoreUI() {
   ui.tapZone.style.setProperty('--score-color', `hsl(${hue} 80% 45%)`);
 }
 
+function updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForVisuals }) {
+  const reducedFx = amplitude < 1;
+  const bpmFactor = clamp((Math.max(40, bpmForVisuals) - 40) / 120, 0, 1);
+  const levelFactor = clamp((state.liveLevel - 1) / 9, 0, 1);
+  const tapBoost = inTapPhase ? 1 : 0;
+
+  const ambientOpacity = clamp(0.28 + (0.16 * levelFactor) + (0.18 * bpmFactor) + (0.22 * tapBoost) + (phasePulse * 0.04), 0.2, 0.88) * (reducedFx ? 0.68 : 1);
+  const ambientScale = clamp(0.96 + (0.08 * levelFactor) + (0.07 * bpmFactor) + (0.05 * tapBoost) + (phasePulse * 0.015), 0.92, 1.2);
+  const noiseOpacity = clamp(0.014 + (0.02 * bpmFactor) + (0.015 * tapBoost) + (0.008 * levelFactor), 0.01, 0.08) * (reducedFx ? 0.72 : 1);
+  const tapRingOpacity = inTapPhase
+    ? clamp(0.1 + (0.25 * bpmFactor) + (0.18 * levelFactor) + (Math.max(0, phasePulse) * 0.12), 0.08, 0.78)
+    : 0;
+  const tapRingScale = clamp(0.9 + (0.08 * bpmFactor) + (0.06 * levelFactor) + (Math.max(0, phasePulse) * 0.03), 0.88, 1.08);
+
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--ambient-layer-opacity', ambientOpacity.toFixed(3));
+  rootStyle.setProperty('--ambient-layer-scale', ambientScale.toFixed(3));
+  rootStyle.setProperty('--noise-opacity', noiseOpacity.toFixed(3));
+  rootStyle.setProperty('--tap-ring-opacity', tapRingOpacity.toFixed(3));
+  rootStyle.setProperty('--tap-ring-scale', tapRingScale.toFixed(3));
+}
+
 function updateVisualFx(timestamp, { force = false } = {}) {
   const safeTimestamp = Number.isFinite(timestamp) ? timestamp : performance.now();
   if (state.visualFxLastTimestamp === null) {
@@ -1051,6 +1073,7 @@ function updateVisualFx(timestamp, { force = false } = {}) {
   rootStyle.setProperty('--hue-accent', `${((hue + 240) % 360).toFixed(2)}deg`);
   rootStyle.setProperty('--phase-sat-boost', `${saturationBoost.toFixed(2)}%`);
   rootStyle.setProperty('--phase-light-boost', `${lightnessBoost.toFixed(2)}%`);
+  updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForVisuals });
 
   if (!force && state.visualFxFrame !== null) {
     state.visualFxFrame = requestAnimationFrame((nextTimestamp) => updateVisualFx(nextTimestamp));

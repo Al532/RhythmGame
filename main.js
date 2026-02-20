@@ -2,11 +2,14 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '57';
+const RUNTIME_ASSET_VERSION = '58';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
 const BPM_LEVEL1_DEFAULT = 60;
+const MUSIC_MODE_FIXED_BPM = 70;
+const MUSIC_MODE_OFFSET_MS = 1000;
+const MUSIC_MODE_GAIN = 0.2;
 const BPM_LEVEL10_DEFAULT = 120;
 const BPM_MIN = 40;
 const BPM_MAX = 120;
@@ -182,6 +185,7 @@ const ui = {
   gameScreen: document.getElementById('gameScreen'),
   resultScreen: document.getElementById('resultScreen'),
   startGame: document.getElementById('startGame'),
+  startMusicGame: document.getElementById('startMusicGame'),
   startButtonLiquid: document.querySelector('.start-button__liquid'),
   startButtonSurface: document.querySelector('.start-button__surface'),
   stopGame: document.getElementById('stopGame'),
@@ -354,7 +358,11 @@ const state = {
   pointerTiltY: 0,
   accelTiltX: 0,
   accelTiltY: 0,
-  deviceMotionEnabled: false
+  deviceMotionEnabled: false,
+  isMusicMode: false,
+  musicAudio: null,
+  musicGainNode: null,
+  musicModeStopTimer: null
 };
 
 
@@ -810,6 +818,65 @@ function setAudioMuted(isMuted) {
   state.masterGain.gain.setValueAtTime(isMuted ? 0.0001 : 1, now);
 }
 
+function stopMusicPlayback() {
+  if (state.musicModeStopTimer !== null) {
+    clearTimeout(state.musicModeStopTimer);
+    state.musicModeStopTimer = null;
+  }
+
+  if (state.musicAudio) {
+    state.musicAudio.pause();
+    state.musicAudio.currentTime = 0;
+    state.musicAudio.onended = null;
+  }
+
+  if (state.musicGainNode) {
+    try {
+      state.musicGainNode.disconnect();
+    } catch (_error) {
+      // Already disconnected.
+    }
+  }
+
+  state.musicAudio = null;
+  state.musicGainNode = null;
+}
+
+function startMusicPlayback(referenceStartTime) {
+  if (!state.audioCtx) return;
+
+  stopMusicPlayback();
+
+  const musicAudio = new Audio(`music.mp3?v=${RUNTIME_ASSET_VERSION}`);
+  musicAudio.preload = 'auto';
+  musicAudio.crossOrigin = 'anonymous';
+
+  const musicSource = state.audioCtx.createMediaElementSource(musicAudio);
+  const musicGain = state.audioCtx.createGain();
+  musicGain.gain.setValueAtTime(MUSIC_MODE_GAIN, state.audioCtx.currentTime);
+  musicSource.connect(musicGain).connect(getAudioOutputNode());
+
+  const startAt = Math.max(0, referenceStartTime - (MUSIC_MODE_OFFSET_MS / 1000));
+  const delayMs = Math.max(0, (startAt - state.audioCtx.currentTime) * 1000);
+
+  const stopWithVictory = () => {
+    if (!state.isRunning || !state.isMusicMode) return;
+    stopEngine();
+    showResultScreen('Victory!', 'Niveau musical terminé.');
+  };
+
+  musicAudio.onended = stopWithVictory;
+  state.musicAudio = musicAudio;
+  state.musicGainNode = musicGain;
+
+  state.musicModeStopTimer = setTimeout(() => {
+    musicAudio.play().catch(() => {
+      // Ignore autoplay issues after explicit user interaction.
+    });
+    state.musicModeStopTimer = null;
+  }, delayMs);
+}
+
 function trackVoice(node) {
   if (!node || typeof node.stop !== 'function') return node;
   state.activeVoices.add(node);
@@ -1008,7 +1075,10 @@ function setScore(nextScore, reason) {
 
   if (state.score <= 0) {
     stopEngine();
-    showResultScreen('Game Over', `You reached level ${state.level}.`);
+    const gameOverMessage = state.isMusicMode
+      ? `Niveau musical perdu avant la fin (niveau ${state.level}).`
+      : `You reached level ${state.level}.`;
+    showResultScreen('Game Over', gameOverMessage);
   }
 }
 
@@ -1445,13 +1515,13 @@ function scheduleLoop() {
         if (state.completedPatternsInLevel >= PATTERNS_PER_LEVEL) {
           state.completedPatternsInLevel = 0;
           const repeatCurrentLevel = shouldRepeatCurrentLevel();
-          if (state.level >= LEVEL_MAX && !repeatCurrentLevel) {
+          if (!state.isMusicMode && state.level >= LEVEL_MAX && !repeatCurrentLevel) {
             stopEngine();
             showResultScreen('Victory!', 'You finished level 10.');
             return;
           }
           const previousLevel = state.level;
-          if (!repeatCurrentLevel && state.level < LEVEL_MAX) {
+          if (!state.isMusicMode && !repeatCurrentLevel && state.level < LEVEL_MAX) {
             state.level += 1;
           }
           syncInterpolatedSettings({ updateBpmDisplay: false });
@@ -1475,14 +1545,19 @@ function scheduleLoop() {
   }
 }
 
-function startEngine() {
+function startEngine({ musicMode = false } = {}) {
   if (!state.audioCtx || state.isCalibrating || state.isRunning) return;
 
   setAudioMuted(false);
   state.isRunning = true;
+  state.isMusicMode = musicMode;
   state.level = state.startLevel;
   state.liveLevel = state.startLevel;
   syncInterpolatedSettings();
+  if (state.isMusicMode) {
+    state.bpm = MUSIC_MODE_FIXED_BPM;
+    state.liveBpm = state.bpm;
+  }
   state.liveBpm = state.bpm;
   state.patternNumber = 1;
   state.completedPatternsInLevel = 0;
@@ -1504,6 +1579,9 @@ function startEngine() {
   // Introduction : phase d'entrée uniquement avec la hi-hat avant le début du jeu.
   const countInStart = state.audioCtx.currentTime + 0.08;
   const beatDur = 60 / state.bpm;
+  if (state.isMusicMode) {
+    startMusicPlayback(countInStart + (START_COUNTIN_BEATS * beatDur));
+  }
   for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
     playHiHat(countInStart + (beat * beatDur));
   }
@@ -1516,7 +1594,7 @@ function startEngine() {
 
   resetLog();
   appendLog(
-    `[GAME start] lvl=${state.level} bpm=${state.bpm} latency=${state.latencyOffsetMs}ms hitWindow=${state.hitWindowMs}ms tolerance=${Math.round(getHitToleranceMs(state.bpm))}ms`
+    `[GAME start] mode=${state.isMusicMode ? 'music' : 'classic'} lvl=${state.level} bpm=${state.bpm} latency=${state.latencyOffsetMs}ms hitWindow=${state.hitWindowMs}ms tolerance=${Math.round(getHitToleranceMs(state.bpm))}ms`
   );
 
   if (state.scheduleTimer) clearInterval(state.scheduleTimer);
@@ -1529,6 +1607,7 @@ function startEngine() {
 function stopEngine() {
   state.isRunning = false;
   state.isIntroduction = false;
+  stopMusicPlayback();
   cancelScheduledVoices();
   if (state.scheduleTimer) {
     clearInterval(state.scheduleTimer);
@@ -1545,6 +1624,7 @@ function stopEngine() {
   state.livePhase = PHASE.LISTEN;
   state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   state.liveRepetition = 1;
+  state.isMusicMode = false;
   reapplyVisualFxFlags();
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release', 'tap-hit-pulse');
   if (ui.tapJudgement) {
@@ -2221,6 +2301,12 @@ ui.startGame.addEventListener('click', () => {
   unlockAudio();
   showGameScreen();
   startEngine();
+});
+
+ui.startMusicGame.addEventListener('click', () => {
+  unlockAudio();
+  showGameScreen();
+  startEngine({ musicMode: true });
 });
 
 ui.stopGame.addEventListener('click', () => {

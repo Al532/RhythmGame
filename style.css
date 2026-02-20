@@ -200,6 +200,24 @@ body.tap-phase.fx-background-enabled {
   text-shadow: 0 2px 10px color-mix(in srgb, black, transparent 65%);
 }
 
+
+.start-music-button {
+  justify-self: center;
+  min-width: min(300px, 90vw);
+  padding: 0.75rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 40%);
+  background: color-mix(in srgb, hsl(var(--hue-primary) 60% 20%), transparent 20%);
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.start-music-button:hover {
+  filter: brightness(1.08);
+}
+
 .start-button__liquid,
 .start-button__surface,
 .start-button__gloss {

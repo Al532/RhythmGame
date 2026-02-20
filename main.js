@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '55';
+const RUNTIME_ASSET_VERSION = '57';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -40,6 +40,15 @@ const FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT = [10, 5, 10];
 const JUMP_VALUES = [1, 2, 3, 4, 5];
 const JUMP_WEIGHTS_LEVEL1_DEFAULT = [0, 10, 0, 10, 0];
 const JUMP_WEIGHTS_LEVEL10_DEFAULT = [1, 5, 10, 2, 4];
+
+const TRIPLET_BEAT_START_INDICES = [4, 8, 12];
+const TRIPLET_CHANCE_LEVEL1_DEFAULT = [0, 0, 0];
+const TRIPLET_CHANCE_LEVEL10_DEFAULT = [0.3, 0.3, 0.3];
+const AFTER_TRIPLET_VALUES = [0, 1, 2, 3];
+const AFTER_TRIPLET2_WEIGHTS_LEVEL1_DEFAULT = [10, 0, 0, 0];
+const AFTER_TRIPLET2_WEIGHTS_LEVEL10_DEFAULT = [10, 0, 0, 0];
+const AFTER_TRIPLET3_WEIGHTS_LEVEL1_DEFAULT = [10, 0, 0, 0];
+const AFTER_TRIPLET3_WEIGHTS_LEVEL10_DEFAULT = [10, 0, 0, 0];
 
 const DRUM_GAIN = {
   snare: 0.5,
@@ -92,6 +101,12 @@ const STORAGE_KEYS = {
   weightFirstLevel10: 'rhythmTrainer.weightFirstLevel10',
   weightJumpLevel1: 'rhythmTrainer.weightJumpLevel1',
   weightJumpLevel10: 'rhythmTrainer.weightJumpLevel10',
+  tripletChanceLevel1: 'rhythmTrainer.tripletChanceLevel1',
+  tripletChanceLevel10: 'rhythmTrainer.tripletChanceLevel10',
+  afterTriplet2Level1: 'rhythmTrainer.afterTriplet2Level1',
+  afterTriplet2Level10: 'rhythmTrainer.afterTriplet2Level10',
+  afterTriplet3Level1: 'rhythmTrainer.afterTriplet3Level1',
+  afterTriplet3Level10: 'rhythmTrainer.afterTriplet3Level10',
   latencyOffsetMs: 'rhythmTrainer.latencyOffsetMs',
   hitTolerance: 'rhythmTrainer.hitTolerance',
   hitWindowMs: 'rhythmTrainer.hitWindowMs',
@@ -223,7 +238,29 @@ const ui = {
     { input: document.getElementById('weightJump4Level1'), value: document.getElementById('weightJump4Level1Value'), key: 'jump', level: 1, index: 3 },
     { input: document.getElementById('weightJump4Level10'), value: document.getElementById('weightJump4Level10Value'), key: 'jump', level: 10, index: 3 },
     { input: document.getElementById('weightJump5Level1'), value: document.getElementById('weightJump5Level1Value'), key: 'jump', level: 1, index: 4 },
-    { input: document.getElementById('weightJump5Level10'), value: document.getElementById('weightJump5Level10Value'), key: 'jump', level: 10, index: 4 }
+    { input: document.getElementById('weightJump5Level10'), value: document.getElementById('weightJump5Level10Value'), key: 'jump', level: 10, index: 4 },
+    { input: document.getElementById('tripletBeat2Level1'), value: document.getElementById('tripletBeat2Level1Value'), key: 'tripletChance', level: 1, index: 0 },
+    { input: document.getElementById('tripletBeat2Level10'), value: document.getElementById('tripletBeat2Level10Value'), key: 'tripletChance', level: 10, index: 0 },
+    { input: document.getElementById('tripletBeat3Level1'), value: document.getElementById('tripletBeat3Level1Value'), key: 'tripletChance', level: 1, index: 1 },
+    { input: document.getElementById('tripletBeat3Level10'), value: document.getElementById('tripletBeat3Level10Value'), key: 'tripletChance', level: 10, index: 1 },
+    { input: document.getElementById('tripletBeat4Level1'), value: document.getElementById('tripletBeat4Level1Value'), key: 'tripletChance', level: 1, index: 2 },
+    { input: document.getElementById('tripletBeat4Level10'), value: document.getElementById('tripletBeat4Level10Value'), key: 'tripletChance', level: 10, index: 2 },
+    { input: document.getElementById('afterTriplet2Pos1Level1'), value: document.getElementById('afterTriplet2Pos1Level1Value'), key: 'afterTriplet2', level: 1, index: 0 },
+    { input: document.getElementById('afterTriplet2Pos1Level10'), value: document.getElementById('afterTriplet2Pos1Level10Value'), key: 'afterTriplet2', level: 10, index: 0 },
+    { input: document.getElementById('afterTriplet2Pos2Level1'), value: document.getElementById('afterTriplet2Pos2Level1Value'), key: 'afterTriplet2', level: 1, index: 1 },
+    { input: document.getElementById('afterTriplet2Pos2Level10'), value: document.getElementById('afterTriplet2Pos2Level10Value'), key: 'afterTriplet2', level: 10, index: 1 },
+    { input: document.getElementById('afterTriplet2Pos3Level1'), value: document.getElementById('afterTriplet2Pos3Level1Value'), key: 'afterTriplet2', level: 1, index: 2 },
+    { input: document.getElementById('afterTriplet2Pos3Level10'), value: document.getElementById('afterTriplet2Pos3Level10Value'), key: 'afterTriplet2', level: 10, index: 2 },
+    { input: document.getElementById('afterTriplet2Pos4Level1'), value: document.getElementById('afterTriplet2Pos4Level1Value'), key: 'afterTriplet2', level: 1, index: 3 },
+    { input: document.getElementById('afterTriplet2Pos4Level10'), value: document.getElementById('afterTriplet2Pos4Level10Value'), key: 'afterTriplet2', level: 10, index: 3 },
+    { input: document.getElementById('afterTriplet3Pos1Level1'), value: document.getElementById('afterTriplet3Pos1Level1Value'), key: 'afterTriplet3', level: 1, index: 0 },
+    { input: document.getElementById('afterTriplet3Pos1Level10'), value: document.getElementById('afterTriplet3Pos1Level10Value'), key: 'afterTriplet3', level: 10, index: 0 },
+    { input: document.getElementById('afterTriplet3Pos2Level1'), value: document.getElementById('afterTriplet3Pos2Level1Value'), key: 'afterTriplet3', level: 1, index: 1 },
+    { input: document.getElementById('afterTriplet3Pos2Level10'), value: document.getElementById('afterTriplet3Pos2Level10Value'), key: 'afterTriplet3', level: 10, index: 1 },
+    { input: document.getElementById('afterTriplet3Pos3Level1'), value: document.getElementById('afterTriplet3Pos3Level1Value'), key: 'afterTriplet3', level: 1, index: 2 },
+    { input: document.getElementById('afterTriplet3Pos3Level10'), value: document.getElementById('afterTriplet3Pos3Level10Value'), key: 'afterTriplet3', level: 10, index: 2 },
+    { input: document.getElementById('afterTriplet3Pos4Level1'), value: document.getElementById('afterTriplet3Pos4Level1Value'), key: 'afterTriplet3', level: 1, index: 3 },
+    { input: document.getElementById('afterTriplet3Pos4Level10'), value: document.getElementById('afterTriplet3Pos4Level10Value'), key: 'afterTriplet3', level: 10, index: 3 }
   ]
 };
 
@@ -254,6 +291,15 @@ const state = {
   jumpWeightsLevel10: [...JUMP_WEIGHTS_LEVEL10_DEFAULT],
   firstHitWeights: [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT],
   jumpWeights: [...JUMP_WEIGHTS_LEVEL1_DEFAULT],
+  tripletChanceLevel1: [...TRIPLET_CHANCE_LEVEL1_DEFAULT],
+  tripletChanceLevel10: [...TRIPLET_CHANCE_LEVEL10_DEFAULT],
+  tripletChance: [...TRIPLET_CHANCE_LEVEL1_DEFAULT],
+  afterTriplet2WeightsLevel1: [...AFTER_TRIPLET2_WEIGHTS_LEVEL1_DEFAULT],
+  afterTriplet2WeightsLevel10: [...AFTER_TRIPLET2_WEIGHTS_LEVEL10_DEFAULT],
+  afterTriplet2Weights: [...AFTER_TRIPLET2_WEIGHTS_LEVEL1_DEFAULT],
+  afterTriplet3WeightsLevel1: [...AFTER_TRIPLET3_WEIGHTS_LEVEL1_DEFAULT],
+  afterTriplet3WeightsLevel10: [...AFTER_TRIPLET3_WEIGHTS_LEVEL10_DEFAULT],
+  afterTriplet3Weights: [...AFTER_TRIPLET3_WEIGHTS_LEVEL1_DEFAULT],
 
   patternNumber: 1,
   pattern: [],
@@ -436,6 +482,10 @@ async function initializeFxEngine() {
   await reapplyVisualFxFlags();
 }
 
+function getAfterTriplet3AllowedWeights(weights) {
+  return [weights[0], weights[1], weights[2], 0];
+}
+
 function weightedChoice(values, weights) {
   const safeWeights = weights.map((weight) => Math.max(0, Number(weight) || 0));
   const total = safeWeights.reduce((sum, n) => sum + n, 0);
@@ -450,23 +500,61 @@ function weightedChoice(values, weights) {
   return values[values.length - 1];
 }
 
+function clonePattern(pattern) {
+  return {
+    grid: [...pattern.grid],
+    tripletBeatStarts: [...pattern.tripletBeatStarts]
+  };
+}
+
+function getTripletLabelFromStartIndex(startIdx) {
+  return `beat ${Math.floor(startIdx / 4) + 1}`;
+}
+
 function generatePattern() {
-  const p = Array(PATTERN_LENGTH).fill(0);
+  const grid = Array(PATTERN_LENGTH).fill(0);
   let pos = weightedChoice(FIRST_HIT_INDICES, state.firstHitWeights);
   while (pos < 15) {
-    p[pos] = 1;
+    grid[pos] = 1;
     pos += weightedChoice(JUMP_VALUES, state.jumpWeights);
   }
-  p[15] = 0;
-  return p;
+  grid[15] = 0;
+
+  const tripletBeatStarts = [];
+
+  TRIPLET_BEAT_START_INDICES.forEach((beatStart, beatIndex) => {
+    if (grid[beatStart] !== 1) return;
+    if (Math.random() > state.tripletChance[beatIndex]) return;
+
+    tripletBeatStarts.push(beatStart);
+
+    for (let idx = beatStart; idx < beatStart + 4; idx += 1) {
+      grid[idx] = 0;
+    }
+    grid[beatStart] = 1;
+
+    if (beatStart === 4 || beatStart === 8) {
+      const weights = beatStart === 4
+        ? state.afterTriplet2Weights
+        : getAfterTriplet3AllowedWeights(state.afterTriplet3Weights);
+      const offset = weightedChoice(AFTER_TRIPLET_VALUES, weights);
+      const nextBeatStart = beatStart + 4;
+      for (let idx = nextBeatStart; idx < nextBeatStart + 4; idx += 1) {
+        grid[idx] = 0;
+      }
+      grid[nextBeatStart + offset] = 1;
+    }
+  });
+
+  return { grid, tripletBeatStarts };
 }
 
 function initializeLevelPatternSequence() {
   const firstPattern = generatePattern();
   const secondPattern = generatePattern();
-  state.levelPatternPool = [firstPattern, secondPattern, firstPattern, secondPattern];
+  state.levelPatternPool = [firstPattern, secondPattern, firstPattern, secondPattern].map(clonePattern);
   state.levelPatternIndex = 0;
-  state.pattern = [...state.levelPatternPool[state.levelPatternIndex]];
+  state.pattern = clonePattern(state.levelPatternPool[state.levelPatternIndex]);
 }
 
 function moveToNextPatternInLevel() {
@@ -474,7 +562,7 @@ function moveToNextPatternInLevel() {
   if (state.levelPatternIndex >= state.levelPatternPool.length) {
     return false;
   }
-  state.pattern = [...state.levelPatternPool[state.levelPatternIndex]];
+  state.pattern = clonePattern(state.levelPatternPool[state.levelPatternIndex]);
   return true;
 }
 
@@ -535,6 +623,16 @@ function syncInterpolatedSettings({ updateBpmDisplay = true } = {}) {
   state.jumpWeights = state.jumpWeightsLevel1.map((weight, index) => {
     return interpolateLinear(weight, state.jumpWeightsLevel10[index], factor);
   });
+  state.tripletChance = state.tripletChanceLevel1.map((chance, index) => {
+    return interpolateLinear(chance, state.tripletChanceLevel10[index], factor);
+  });
+  state.afterTriplet2Weights = state.afterTriplet2WeightsLevel1.map((weight, index) => {
+    return interpolateLinear(weight, state.afterTriplet2WeightsLevel10[index], factor);
+  });
+  state.afterTriplet3Weights = state.afterTriplet3WeightsLevel1.map((weight, index) => {
+    return interpolateLinear(weight, state.afterTriplet3WeightsLevel10[index], factor);
+  });
+  state.afterTriplet3Weights[3] = 0;
 
   if (updateBpmDisplay) {
     ui.bpmValue.textContent = String(state.bpm);
@@ -593,6 +691,38 @@ function applyPersistedSettings() {
   const storedJumpLevel10 = parseStoredArray(STORAGE_KEYS.weightJumpLevel10, JUMP_WEIGHTS_LEVEL10_DEFAULT.length);
   if (storedJumpLevel10) {
     state.jumpWeightsLevel10 = storedJumpLevel10.map((weight) => clamp(weight, 0, 10));
+  }
+
+  const storedTripletChanceLevel1 = parseStoredArray(STORAGE_KEYS.tripletChanceLevel1, TRIPLET_CHANCE_LEVEL1_DEFAULT.length);
+  if (storedTripletChanceLevel1) {
+    state.tripletChanceLevel1 = storedTripletChanceLevel1.map((chance) => clamp(chance, 0, 1));
+  }
+
+  const storedTripletChanceLevel10 = parseStoredArray(STORAGE_KEYS.tripletChanceLevel10, TRIPLET_CHANCE_LEVEL10_DEFAULT.length);
+  if (storedTripletChanceLevel10) {
+    state.tripletChanceLevel10 = storedTripletChanceLevel10.map((chance) => clamp(chance, 0, 1));
+  }
+
+  const storedAfterTriplet2Level1 = parseStoredArray(STORAGE_KEYS.afterTriplet2Level1, AFTER_TRIPLET2_WEIGHTS_LEVEL1_DEFAULT.length);
+  if (storedAfterTriplet2Level1) {
+    state.afterTriplet2WeightsLevel1 = storedAfterTriplet2Level1.map((weight) => clamp(weight, 0, 10));
+  }
+
+  const storedAfterTriplet2Level10 = parseStoredArray(STORAGE_KEYS.afterTriplet2Level10, AFTER_TRIPLET2_WEIGHTS_LEVEL10_DEFAULT.length);
+  if (storedAfterTriplet2Level10) {
+    state.afterTriplet2WeightsLevel10 = storedAfterTriplet2Level10.map((weight) => clamp(weight, 0, 10));
+  }
+
+  const storedAfterTriplet3Level1 = parseStoredArray(STORAGE_KEYS.afterTriplet3Level1, AFTER_TRIPLET3_WEIGHTS_LEVEL1_DEFAULT.length);
+  if (storedAfterTriplet3Level1) {
+    state.afterTriplet3WeightsLevel1 = storedAfterTriplet3Level1.map((weight) => clamp(weight, 0, 10));
+    state.afterTriplet3WeightsLevel1[3] = 0;
+  }
+
+  const storedAfterTriplet3Level10 = parseStoredArray(STORAGE_KEYS.afterTriplet3Level10, AFTER_TRIPLET3_WEIGHTS_LEVEL10_DEFAULT.length);
+  if (storedAfterTriplet3Level10) {
+    state.afterTriplet3WeightsLevel10 = storedAfterTriplet3Level10.map((weight) => clamp(weight, 0, 10));
+    state.afterTriplet3WeightsLevel10[3] = 0;
   }
 
   const storedLatency = loadStoredNumber(STORAGE_KEYS.latencyOffsetMs);
@@ -803,8 +933,41 @@ function formatSeconds(seconds) {
   return `${seconds.toFixed(3)}s`;
 }
 
+function getPatternNoteEvents(pattern, bpmForMeasure, measureStart = 0) {
+  const subdivDur = getSubdivDur(bpmForMeasure);
+  const beatDur = subdivDur * 4;
+  const events = [];
+  const tripletSet = new Set(pattern.tripletBeatStarts);
+
+  pattern.grid.forEach((value, idx) => {
+    if (value !== 1) return;
+    if (tripletSet.has(idx)) {
+      for (let tripletIndex = 0; tripletIndex < 3; tripletIndex += 1) {
+        const targetTime = measureStart + (idx * subdivDur) + ((tripletIndex * beatDur) / 3);
+        events.push({
+          targetTime,
+          label: `${getTripletLabelFromStartIndex(idx)} triplet #${tripletIndex + 1}`,
+          idx: idx + ((tripletIndex + 1) / 10)
+        });
+      }
+      return;
+    }
+
+    events.push({
+      targetTime: measureStart + (idx * subdivDur),
+      label: `note[${idx + 1}]`,
+      idx
+    });
+  });
+
+  return events.sort((a, b) => a.targetTime - b.targetTime);
+}
+
 function formatPattern(pattern) {
-  return pattern.map((value) => (value === 1 ? 'x' : '.')).join('');
+  const grid = pattern.grid.map((value) => (value === 1 ? 'x' : '.')).join('');
+  if (pattern.tripletBeatStarts.length === 0) return grid;
+  const beats = pattern.tripletBeatStarts.map((startIdx) => Math.floor(startIdx / 4) + 1).join(',');
+  return `${grid} | triplets: ${beats}`;
 }
 
 function formatErrorMs(ms) {
@@ -859,21 +1022,19 @@ function prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure) {
   state.expectedIndex = 0;
   state.tapMeasureStart = measureStart;
   state.tapMeasureBpm = bpmForMeasure;
-  state.tapPattern = [...patternForMeasure];
-  const subdivDur = getSubdivDur(bpmForMeasure);
+  state.tapPattern = clonePattern(patternForMeasure);
+  const events = getPatternNoteEvents(patternForMeasure, bpmForMeasure, measureStart);
 
-  patternForMeasure.forEach((value, idx) => {
-    if (value !== 1 || idx === 15) return;
-    const targetTime = measureStart + (idx * subdivDur);
+  events.forEach((event) => {
     state.expectedHits.push({
-      idx,
-      targetTime,
+      idx: event.idx,
+      label: event.label,
+      targetTime: event.targetTime,
       consumed: false,
       validated: false,
       correct: false,
       missed: false
     });
-
   });
 
   appendLog(
@@ -932,9 +1093,9 @@ function markLiveMisses() {
       hit.consumed = true;
       hit.missed = true;
       appendLog(
-        `[MISS] note[${hit.idx + 1}] target=${formatSeconds(hit.targetTime)} now=${formatSeconds(adjustedNow)} delta=${formatErrorMs((adjustedNow - hit.targetTime) * 1000)}`
+        `[MISS] ${hit.label} target=${formatSeconds(hit.targetTime)} now=${formatSeconds(adjustedNow)} delta=${formatErrorMs((adjustedNow - hit.targetTime) * 1000)}`
       );
-      consumeScorePoint(`missed note[${hit.idx + 1}]`);
+      consumeScorePoint(`missed ${hit.label}`);
     }
   });
 
@@ -950,9 +1111,9 @@ function finalizePendingTapHitsAtPhaseEnd(phaseEndTime) {
     hit.consumed = true;
     hit.missed = true;
     appendLog(
-      `[MISS] note[${hit.idx + 1}] target=${formatSeconds(hit.targetTime)} phaseEnd=${formatSeconds(phaseEndTime)} delta=${formatErrorMs((phaseEndTime - hit.targetTime) * 1000)}`
+      `[MISS] ${hit.label} target=${formatSeconds(hit.targetTime)} phaseEnd=${formatSeconds(phaseEndTime)} delta=${formatErrorMs((phaseEndTime - hit.targetTime) * 1000)}`
     );
-    consumeScorePoint(`missed note[${hit.idx + 1}]`);
+    consumeScorePoint(`missed ${hit.label}`);
   });
 
   advanceExpectedIndex();
@@ -1117,13 +1278,25 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 
+  const tripletSet = new Set(patternForMeasure.tripletBeatStarts);
+
   for (let idx = 0; idx < PATTERN_LENGTH; idx += 1) {
     const eventTime = measureStart + (idx * subdivDur);
 
-    if (patternForMeasure[idx] === 1) {
-      playSnare(eventTime);
+    if (idx % 4 === 0) playKick(eventTime);
 
-      const feedbackDelayMs = Math.max(0, ((eventTime - state.audioCtx.currentTime) * 1000) + state.latencyOffsetMs);
+    if (patternForMeasure.grid[idx] !== 1) {
+      continue;
+    }
+
+    const snareTimes = tripletSet.has(idx)
+      ? [eventTime, eventTime + ((4 * subdivDur) / 3), eventTime + ((8 * subdivDur) / 3)]
+      : [eventTime];
+
+    snareTimes.forEach((snareTime) => {
+      playSnare(snareTime);
+
+      const feedbackDelayMs = Math.max(0, ((snareTime - state.audioCtx.currentTime) * 1000) + state.latencyOffsetMs);
       setTimeout(() => {
         if (!state.isRunning) return;
         triggerPatternHitFlash();
@@ -1133,11 +1306,9 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
       }, feedbackDelayMs);
 
       if (phase === PHASE.TAP) {
-        scheduleTapLabelPulseForPatternHit(eventTime);
+        scheduleTapLabelPulseForPatternHit(snareTime);
       }
-    }
-
-    if (idx % 4 === 0) playKick(eventTime);
+    });
   }
 
   if (phase === PHASE.LISTEN) {
@@ -1256,7 +1427,7 @@ function scheduleLoop() {
     const measureDur = getMeasureDur();
     state.currentMeasureStart = state.nextMeasureTime;
 
-    const patternForMeasure = [...state.pattern];
+    const patternForMeasure = clonePattern(state.pattern);
     const levelForMeasure = state.level;
     const bpmForMeasure = state.bpm;
     scheduleMeasure(state.nextMeasureTime, state.phase, state.repetition, patternForMeasure, levelForMeasure, bpmForMeasure);
@@ -1504,18 +1675,16 @@ function updateStaticUI() {
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {
   const windowSec = getSubdivDur(state.tapMeasureBpm);
   const pattern = state.tapPattern ?? state.pattern;
-  const expectedHitByIdx = new Map(state.expectedHits.map((hit) => [hit.idx, hit]));
+  const events = getPatternNoteEvents(pattern, state.tapMeasureBpm, state.tapMeasureStart);
 
-  for (let idx = 0; idx < pattern.length; idx += 1) {
-    if (pattern[idx] !== 1 || idx === 15) continue;
-
-    const expectedHit = expectedHitByIdx.get(idx);
+  for (let idx = 0; idx < events.length; idx += 1) {
+    const event = events[idx];
+    const expectedHit = state.expectedHits.find((hit) => hit.label === event.label && Math.abs(hit.targetTime - event.targetTime) < 0.0001);
     if (expectedHit && isHitJudged(expectedHit)) continue;
 
-    const noteTime = state.tapMeasureStart + (idx * getSubdivDur(state.tapMeasureBpm));
-    const distance = Math.abs(adjustedTapTime - noteTime);
+    const distance = Math.abs(adjustedTapTime - event.targetTime);
     if (distance <= windowSec) {
-      return { idx, noteTime };
+      return { label: event.label, noteTime: event.targetTime };
     }
   }
 
@@ -1652,7 +1821,7 @@ function recordTap() {
         hitCategory = isPerfect ? HIT_CATEGORY.PERFECT : HIT_CATEGORY.CORRECT;
         showTapJudgement(hitCategory);
         appendLog(
-          `${isPerfect ? '[PERFECT]' : '[OK]'} note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
+          `${isPerfect ? '[PERFECT]' : '[OK]'} ${hit.label} tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
       } else {
         hit.correct = false;
@@ -1660,9 +1829,9 @@ function recordTap() {
         hitCategory = HIT_CATEGORY.MISSED;
         showTapJudgement(hitCategory);
         appendLog(
-          `[ERR timing] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
+          `[ERR timing] ${hit.label} tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
-        consumeScorePoint(`wrong timing note[${hit.idx + 1}] (${formatErrorMs(errorSec * 1000)})`);
+        consumeScorePoint(`wrong timing ${hit.label} (${formatErrorMs(errorSec * 1000)})`);
       }
     } else {
       let scoreReason = '';
@@ -1671,9 +1840,9 @@ function recordTap() {
       if (nearbyNote) {
         const errorMs = (adjustedTapTime - nearbyNote.noteTime) * 1000;
         appendLog(
-          `[ERR timing] note[${nearbyNote.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(nearbyNote.noteTime)} delta=${formatErrorMs(errorMs)}`
+          `[ERR timing] ${nearbyNote.label} tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(nearbyNote.noteTime)} delta=${formatErrorMs(errorMs)}`
         );
-        scoreReason = `wrong timing note[${nearbyNote.idx + 1}] (${formatErrorMs(errorMs)})`;
+        scoreReason = `wrong timing ${nearbyNote.label} (${formatErrorMs(errorMs)})`;
       } else {
         const closestIndex = getClosestSubdivIndex(adjustedTapTime);
         appendLog(
@@ -1699,6 +1868,30 @@ function recordTap() {
 }
 
 
+
+function getEndpointSource(key, level) {
+  if (key === 'first') return level === 1 ? state.firstHitWeightsLevel1 : state.firstHitWeightsLevel10;
+  if (key === 'jump') return level === 1 ? state.jumpWeightsLevel1 : state.jumpWeightsLevel10;
+  if (key === 'tripletChance') return level === 1 ? state.tripletChanceLevel1 : state.tripletChanceLevel10;
+  if (key === 'afterTriplet2') return level === 1 ? state.afterTriplet2WeightsLevel1 : state.afterTriplet2WeightsLevel10;
+  if (key === 'afterTriplet3') return level === 1 ? state.afterTriplet3WeightsLevel1 : state.afterTriplet3WeightsLevel10;
+  return [];
+}
+
+function getEndpointStorageKey(key, level) {
+  if (key === 'first') return level === 1 ? STORAGE_KEYS.weightFirstLevel1 : STORAGE_KEYS.weightFirstLevel10;
+  if (key === 'jump') return level === 1 ? STORAGE_KEYS.weightJumpLevel1 : STORAGE_KEYS.weightJumpLevel10;
+  if (key === 'tripletChance') return level === 1 ? STORAGE_KEYS.tripletChanceLevel1 : STORAGE_KEYS.tripletChanceLevel10;
+  if (key === 'afterTriplet2') return level === 1 ? STORAGE_KEYS.afterTriplet2Level1 : STORAGE_KEYS.afterTriplet2Level10;
+  if (key === 'afterTriplet3') return level === 1 ? STORAGE_KEYS.afterTriplet3Level1 : STORAGE_KEYS.afterTriplet3Level10;
+  return null;
+}
+
+function formatEndpointValueForUi(key, value) {
+  if (key === 'tripletChance') return Number(value).toFixed(2);
+  return String(value);
+}
+
 function clearLocalCache() {
   try {
     window.localStorage.removeItem(STORAGE_KEYS.level);
@@ -1708,6 +1901,12 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.weightFirstLevel10);
     window.localStorage.removeItem(STORAGE_KEYS.weightJumpLevel1);
     window.localStorage.removeItem(STORAGE_KEYS.weightJumpLevel10);
+    window.localStorage.removeItem(STORAGE_KEYS.tripletChanceLevel1);
+    window.localStorage.removeItem(STORAGE_KEYS.tripletChanceLevel10);
+    window.localStorage.removeItem(STORAGE_KEYS.afterTriplet2Level1);
+    window.localStorage.removeItem(STORAGE_KEYS.afterTriplet2Level10);
+    window.localStorage.removeItem(STORAGE_KEYS.afterTriplet3Level1);
+    window.localStorage.removeItem(STORAGE_KEYS.afterTriplet3Level10);
     window.localStorage.removeItem(STORAGE_KEYS.latencyOffsetMs);
     window.localStorage.removeItem(STORAGE_KEYS.hitTolerance);
     window.localStorage.removeItem(STORAGE_KEYS.hitWindowMs);
@@ -1731,6 +1930,12 @@ function clearLocalCache() {
   state.firstHitWeightsLevel10 = [...FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT];
   state.jumpWeightsLevel1 = [...JUMP_WEIGHTS_LEVEL1_DEFAULT];
   state.jumpWeightsLevel10 = [...JUMP_WEIGHTS_LEVEL10_DEFAULT];
+  state.tripletChanceLevel1 = [...TRIPLET_CHANCE_LEVEL1_DEFAULT];
+  state.tripletChanceLevel10 = [...TRIPLET_CHANCE_LEVEL10_DEFAULT];
+  state.afterTriplet2WeightsLevel1 = [...AFTER_TRIPLET2_WEIGHTS_LEVEL1_DEFAULT];
+  state.afterTriplet2WeightsLevel10 = [...AFTER_TRIPLET2_WEIGHTS_LEVEL10_DEFAULT];
+  state.afterTriplet3WeightsLevel1 = [...AFTER_TRIPLET3_WEIGHTS_LEVEL1_DEFAULT];
+  state.afterTriplet3WeightsLevel10 = [...AFTER_TRIPLET3_WEIGHTS_LEVEL10_DEFAULT];
   syncInterpolatedSettings();
   state.latencyOffsetMs = INPUT_LATENCY_DEFAULT_MS;
   state.hitTolerance = HIT_TOLERANCE_DEFAULT;
@@ -1753,12 +1958,10 @@ function clearLocalCache() {
   ui.bpmLevel10Value.textContent = String(state.bpmLevel10);
 
   ui.endpointInputs.forEach(({ input, value, key, level, index }) => {
-    const source = key === 'first'
-      ? (level === 1 ? state.firstHitWeightsLevel1 : state.firstHitWeightsLevel10)
-      : (level === 1 ? state.jumpWeightsLevel1 : state.jumpWeightsLevel10);
+    const source = getEndpointSource(key, level);
     const weight = source[index];
     input.value = String(weight);
-    value.textContent = String(weight);
+    value.textContent = formatEndpointValueForUi(key, weight);
   });
 
   ui.latency.value = String(state.latencyOffsetMs);
@@ -1781,32 +1984,28 @@ function clearLocalCache() {
 
 function bindEndpointControls() {
   ui.endpointInputs.forEach(({ input, value, key, level, index }) => {
-    const source = key === 'first'
-      ? (level === 1 ? state.firstHitWeightsLevel1 : state.firstHitWeightsLevel10)
-      : (level === 1 ? state.jumpWeightsLevel1 : state.jumpWeightsLevel10);
+    const source = getEndpointSource(key, level);
     input.value = String(source[index]);
-    value.textContent = String(source[index]);
+    value.textContent = formatEndpointValueForUi(key, source[index]);
 
     const sync = () => {
-      const weight = clamp(Number(input.value), 0, 10);
-      input.value = String(weight);
-      value.textContent = String(weight);
-      if (key === 'first') {
-        if (level === 1) {
-          state.firstHitWeightsLevel1[index] = weight;
-          saveArraySetting(STORAGE_KEYS.weightFirstLevel1, state.firstHitWeightsLevel1);
-        } else {
-          state.firstHitWeightsLevel10[index] = weight;
-          saveArraySetting(STORAGE_KEYS.weightFirstLevel10, state.firstHitWeightsLevel10);
-        }
-      } else {
-        if (level === 1) {
-          state.jumpWeightsLevel1[index] = weight;
-          saveArraySetting(STORAGE_KEYS.weightJumpLevel1, state.jumpWeightsLevel1);
-        } else {
-          state.jumpWeightsLevel10[index] = weight;
-          saveArraySetting(STORAGE_KEYS.weightJumpLevel10, state.jumpWeightsLevel10);
-        }
+      const max = key === 'tripletChance' ? 1 : 10;
+      const step = key === 'tripletChance' ? 0.01 : 1;
+      const nextValue = clamp(Number(Number(input.value).toFixed(key === 'tripletChance' ? 2 : 0)), 0, max);
+      const normalized = key === 'tripletChance'
+        ? Number(Math.round(nextValue / step) * step).toFixed(2)
+        : String(Math.round(nextValue));
+      let parsed = Number(normalized);
+      if (key === 'afterTriplet3' && index === 3) {
+        parsed = 0;
+      }
+      input.value = String(parsed);
+      value.textContent = formatEndpointValueForUi(key, parsed);
+
+      source[index] = parsed;
+      const storageKey = getEndpointStorageKey(key, level);
+      if (storageKey) {
+        saveArraySetting(storageKey, source);
       }
 
       syncInterpolatedSettings();

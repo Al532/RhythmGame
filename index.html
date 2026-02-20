@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
     <script>
-      window.APP_VERSION = "55";
+      window.APP_VERSION = "57";
     </script>
-    <link rel="stylesheet" href="style.css?v=55" />
-    <link rel="modulepreload" href="fx-webgl.js?v=55" />
-    <script src="main.js?v=55" defer></script>
+    <link rel="stylesheet" href="style.css?v=57" />
+    <link rel="modulepreload" href="fx-webgl.js?v=57" />
+    <script src="main.js?v=57" defer></script>
   </head>
   <body>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
@@ -204,6 +204,128 @@
               <label>
                 Jump 5 @ lvl 10: <span id="weightJump5Level10Value">4</span>
                 <input id="weightJump5Level10" type="range" min="0" max="10" step="1" value="4" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Triplet chance by beat</legend>
+            <div class="dual-slider-row">
+              <label>
+                Beat 2 @ lvl 1: <span id="tripletBeat2Level1Value">0.00</span>
+                <input id="tripletBeat2Level1" type="range" min="0" max="1" step="0.01" value="0" />
+              </label>
+              <label>
+                Beat 2 @ lvl 10: <span id="tripletBeat2Level10Value">0.30</span>
+                <input id="tripletBeat2Level10" type="range" min="0" max="1" step="0.01" value="0.3" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Beat 3 @ lvl 1: <span id="tripletBeat3Level1Value">0.00</span>
+                <input id="tripletBeat3Level1" type="range" min="0" max="1" step="0.01" value="0" />
+              </label>
+              <label>
+                Beat 3 @ lvl 10: <span id="tripletBeat3Level10Value">0.30</span>
+                <input id="tripletBeat3Level10" type="range" min="0" max="1" step="0.01" value="0.3" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                Beat 4 @ lvl 1: <span id="tripletBeat4Level1Value">0.00</span>
+                <input id="tripletBeat4Level1" type="range" min="0" max="1" step="0.01" value="0" />
+              </label>
+              <label>
+                Beat 4 @ lvl 10: <span id="tripletBeat4Level10Value">0.30</span>
+                <input id="tripletBeat4Level10" type="range" min="0" max="1" step="0.01" value="0.3" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>After beat-2 triplet: note position in beat 3</legend>
+            <div class="dual-slider-row">
+              <label>
+                16th #1 @ lvl 1: <span id="afterTriplet2Pos1Level1Value">10</span>
+                <input id="afterTriplet2Pos1Level1" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+              <label>
+                16th #1 @ lvl 10: <span id="afterTriplet2Pos1Level10Value">10</span>
+                <input id="afterTriplet2Pos1Level10" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                16th #2 @ lvl 1: <span id="afterTriplet2Pos2Level1Value">0</span>
+                <input id="afterTriplet2Pos2Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                16th #2 @ lvl 10: <span id="afterTriplet2Pos2Level10Value">0</span>
+                <input id="afterTriplet2Pos2Level10" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                16th #3 @ lvl 1: <span id="afterTriplet2Pos3Level1Value">0</span>
+                <input id="afterTriplet2Pos3Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                16th #3 @ lvl 10: <span id="afterTriplet2Pos3Level10Value">0</span>
+                <input id="afterTriplet2Pos3Level10" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                16th #4 @ lvl 1: <span id="afterTriplet2Pos4Level1Value">0</span>
+                <input id="afterTriplet2Pos4Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                16th #4 @ lvl 10: <span id="afterTriplet2Pos4Level10Value">0</span>
+                <input id="afterTriplet2Pos4Level10" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>After beat-3 triplet: note position in beat 4</legend>
+            <div class="dual-slider-row">
+              <label>
+                16th #1 @ lvl 1: <span id="afterTriplet3Pos1Level1Value">10</span>
+                <input id="afterTriplet3Pos1Level1" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+              <label>
+                16th #1 @ lvl 10: <span id="afterTriplet3Pos1Level10Value">10</span>
+                <input id="afterTriplet3Pos1Level10" type="range" min="0" max="10" step="1" value="10" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                16th #2 @ lvl 1: <span id="afterTriplet3Pos2Level1Value">0</span>
+                <input id="afterTriplet3Pos2Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                16th #2 @ lvl 10: <span id="afterTriplet3Pos2Level10Value">0</span>
+                <input id="afterTriplet3Pos2Level10" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                16th #3 @ lvl 1: <span id="afterTriplet3Pos3Level1Value">0</span>
+                <input id="afterTriplet3Pos3Level1" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+              <label>
+                16th #3 @ lvl 10: <span id="afterTriplet3Pos3Level10Value">0</span>
+                <input id="afterTriplet3Pos3Level10" type="range" min="0" max="10" step="1" value="0" />
+              </label>
+            </div>
+            <div class="dual-slider-row">
+              <label>
+                16th #4 @ lvl 1 (forbidden): <span id="afterTriplet3Pos4Level1Value">0</span>
+                <input id="afterTriplet3Pos4Level1" type="range" min="0" max="10" step="1" value="0" disabled />
+              </label>
+              <label>
+                16th #4 @ lvl 10 (forbidden): <span id="afterTriplet3Pos4Level10Value">0</span>
+                <input id="afterTriplet3Pos4Level10" type="range" min="0" max="10" step="1" value="0" disabled />
               </label>
             </div>
           </fieldset>

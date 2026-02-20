@@ -95,6 +95,20 @@ body:not(.fx-css-noise-enabled)::after {
 }
 
 
+body:not(.fx-ambient-enabled)::before {
+  opacity: 0;
+}
+
+body:not(.fx-tap-ring-enabled) .tap-zone::after {
+  opacity: 0;
+}
+
+body:not(.fx-hue-shift-enabled) {
+  --phase-sat-boost: 0%;
+  --phase-light-boost: 0%;
+}
+
+
 @keyframes drift {
   from {
     transform: translate3d(-2%, -1%, 0) scale(calc(var(--ambient-layer-scale) * 0.98));

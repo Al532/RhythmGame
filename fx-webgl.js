@@ -89,7 +89,7 @@ void main() {
   vec3 nebulaColor = mix(vec3(0.08, 0.10, 0.20), accent, clamp((nebula * 0.9) + (nebulaLayer * 0.7), 0.0, 1.0));
   vec3 kaleidoColor = accent * (0.18 + 0.35 * smoothstep(0.42, 0.0, kaleido + radius * 0.05));
 
-  float pulseEnergy = max(u_hitPulse, u_beatPulse * 0.55) + (u_effectBoost * 0.3);
+  float pulseEnergy = u_hitPulse + (u_effectBoost * 0.3);
   float pulseGlow = exp(-radius * (3.0 + (pulseEnergy * 2.0))) * pulseEnergy;
   float vignette = smoothstep(1.15, 0.18, radius);
 
@@ -97,10 +97,10 @@ void main() {
 
   vec3 color = (phaseColor * 0.38)
     + (nebulaColor * (0.58 + 0.22 * beatWave))
-    + (kaleidoColor * (0.35 + 0.25 * u_beatPulse))
+    + (kaleidoColor * 0.35)
     + (accent * pulseGlow * 0.85)
     + hitFlash
-    + vec3(starField * (0.35 + 0.35 * u_beatPulse));
+    + vec3(starField * 0.35);
 
   float contrast = mix(1.0, 0.72, safeMix);
   color = mix(vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), color, contrast);
@@ -392,15 +392,7 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     state.hitCategoryCurrent += (state.hitCategory - state.hitCategoryCurrent) * 0.2;
     state.hitCategory *= 0.85;
 
-    const beatsPerSecond = Math.max(0.1, state.bpmCurrent / 60);
-    const currentBeat = Math.floor(elapsed * beatsPerSecond);
-    if (currentBeat !== state.beatIndex) {
-      state.beatIndex = currentBeat;
-      state.beatPulse = Math.max(state.beatPulse, state.safeMode ? 0.32 : 0.58);
-      state.beatBoost = Math.max(state.beatBoost, 0.35);
-    }
-
-    const effectBoost = Math.min(state.limiter, Math.max(state.hitPulse, state.beatBoost, state.perfectBoost));
+    const effectBoost = Math.min(state.limiter, Math.max(state.hitPulse, state.perfectBoost));
     const preset = FX_PRESETS[state.preset] || FX_PRESETS.minimal;
     const expensiveAllowed = !state.lowFpsMode && state.safeModeCurrent < 0.65;
 

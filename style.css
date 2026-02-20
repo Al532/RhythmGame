@@ -633,6 +633,22 @@ summary {
     radial-gradient(46% 28% at 56% 92%, color-mix(in srgb, white, transparent 88%) 0%, transparent 84%);
 }
 
+
+.tap-zone__text {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.2rem, 4.5vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, white, hsl(var(--hue-secondary) 96% 80%) 18%);
+  text-shadow: 0 2px 10px color-mix(in srgb, black, transparent 65%);
+  pointer-events: none;
+}
+
 .tap-zone.listen-muted {
   --tap-saturation: 0.2;
 }

@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
     <script>
-      window.APP_VERSION = "51";
+      window.APP_VERSION = "52";
     </script>
-    <link rel="stylesheet" href="style.css?v=51" />
-    <link rel="modulepreload" href="fx-webgl.js?v=51" />
-    <script src="main.js?v=51" defer></script>
+    <link rel="stylesheet" href="style.css?v=52" />
+    <link rel="modulepreload" href="fx-webgl.js?v=52" />
+    <script src="main.js?v=52" defer></script>
   </head>
   <body>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
@@ -221,6 +221,7 @@
 
       <section id="gameScreen" class="screen game-screen hidden">
         <button id="stopGame" class="stop-button" type="button">STOP</button>
+        <p id="tapJudgement" class="tap-judgement" aria-live="polite"></p>
         <p class="game-level">Level <span id="gameLevelValue">1</span></p>
         <button id="tapZone" class="tap-zone" aria-label="Tap input zone">
           <span class="tap-zone__liquid" aria-hidden="true"></span>

@@ -868,6 +868,23 @@ function markLiveMisses() {
   advanceExpectedIndex();
 }
 
+function finalizePendingTapHitsAtPhaseEnd(phaseEndTime) {
+  // Source de vérité finale : à la bascule TAP -> LISTEN, tous les hits TAP restants
+  // doivent être définitivement jugés comme miss, même si la hit window n'est pas écoulée.
+  state.expectedHits.forEach((hit) => {
+    if (isHitJudged(hit)) return;
+
+    hit.consumed = true;
+    hit.missed = true;
+    appendLog(
+      `[MISS] note[${hit.idx + 1}] target=${formatSeconds(hit.targetTime)} phaseEnd=${formatSeconds(phaseEndTime)} delta=${formatErrorMs((phaseEndTime - hit.targetTime) * 1000)}`
+    );
+    consumeScorePoint(`missed note[${hit.idx + 1}]`);
+  });
+
+  advanceExpectedIndex();
+}
+
 
 function clearListenSaturationTimers() {
   if (state.listenSaturationStartTimer !== null) {
@@ -907,6 +924,7 @@ function scheduleListenSaturationRelease(measureStart, bpmForMeasure) {
 function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, levelForMeasure, bpmForMeasure) {
   const subdivDur = getSubdivDur(bpmForMeasure);
   const phaseStartTime = measureStart;
+  const phaseEndTime = measureStart + (PATTERN_LENGTH * subdivDur);
 
   setTimeout(() => {
     state.isIntroduction = false;
@@ -961,6 +979,12 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
 
   if (phase === PHASE.LISTEN) {
     playCymbalCrescendo(measureStart + (14 * subdivDur), measureStart + (16 * subdivDur));
+  } else if (phase === PHASE.TAP) {
+    setTimeout(() => {
+      if (!state.isRunning) return;
+      if (state.tapMeasureStart !== measureStart) return;
+      finalizePendingTapHitsAtPhaseEnd(phaseEndTime);
+    }, Math.max(0, (phaseEndTime - state.audioCtx.currentTime) * 1000));
   }
 }
 
@@ -1404,6 +1428,18 @@ function recordTap() {
     recordCalibrationTap(tapTime);
   } else if (state.isRunning && state.livePhase === PHASE.TAP) {
     const adjustedTapTime = tapTime - (state.latencyOffsetMs / 1000);
+    const tapPhaseEndTime = state.tapMeasureStart + (PATTERN_LENGTH * getSubdivDur(state.tapMeasureBpm));
+    if (adjustedTapTime >= tapPhaseEndTime) {
+      appendLog(
+        `[ERR late] tap=${formatSeconds(adjustedTapTime)} phaseEnd=${formatSeconds(tapPhaseEndTime)}`
+      );
+      consumeScorePoint('tap after TAP phase end');
+      pulseIntensity = 0.28;
+      triggerTapZoneFeedback({ vibrate: true });
+      state.fxEngine?.pulseHit(pulseIntensity, { perfect: false });
+      return;
+    }
+
     const candidate = getClosestCandidateFromExpectedWindow(adjustedTapTime);
     const hitWindowSec = state.hitWindowMs / 1000;
 

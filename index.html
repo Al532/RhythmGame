@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
     <script>
-      window.APP_VERSION = "39";
+      window.APP_VERSION = "40";
     </script>
-    <link rel="stylesheet" href="style.css?v=39" />
-    <link rel="modulepreload" href="fx-webgl.js?v=39" />
-    <script src="main.js?v=39" defer></script>
+    <link rel="stylesheet" href="style.css?v=40" />
+    <link rel="modulepreload" href="fx-webgl.js?v=40" />
+    <script src="main.js?v=40" defer></script>
   </head>
   <body>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
@@ -48,6 +48,11 @@
           <label>
             Hit tolerance: <span id="hitToleranceDisplay">50 (125 ms)</span>
             <input id="hitTolerance" type="range" min="0" max="100" step="1" value="50" />
+          </label>
+
+          <label>
+            Perfect window (± ms): <span id="perfectWindowDisplay">30</span>
+            <input id="perfectWindowMs" type="range" min="10" max="80" step="1" value="30" />
           </label>
 
           <label>

@@ -386,6 +386,18 @@ summary {
 
 .tap-zone.active { border-color: color-mix(in srgb, var(--ok), white 25%); }
 .tap-zone.pressed { transform: scale(0.98); }
+.tap-zone.perfect {
+  border-color: color-mix(in srgb, #69f4a6, white 20%);
+  box-shadow: 0 0 0 8px color-mix(in srgb, #69f4a6, transparent 82%), 0 0 42px color-mix(in srgb, #69f4a6, transparent 55%);
+}
+.tap-zone.correct {
+  border-color: color-mix(in srgb, #78baff, white 18%);
+  box-shadow: 0 0 0 6px color-mix(in srgb, #78baff, transparent 86%), 0 0 28px color-mix(in srgb, #78baff, transparent 65%);
+}
+.tap-zone.missed {
+  border-color: color-mix(in srgb, #ff6a83, white 12%);
+  box-shadow: 0 0 0 6px color-mix(in srgb, #ff6a83, transparent 84%), 0 0 34px color-mix(in srgb, #ff6a83, transparent 62%);
+}
 
 .result-screen {
   min-height: calc(100vh - 2rem);

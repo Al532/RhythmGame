@@ -11,7 +11,6 @@
   --hue-accent: 100deg;
   --phase-sat-boost: 0%;
   --phase-light-boost: 0%;
-  --fx-intensity: 1;
   --ambient-layer-opacity: 0.5;
   --ambient-layer-scale: 1;
   --noise-opacity: 0.045;
@@ -29,7 +28,7 @@ body {
   position: relative;
   background: radial-gradient(
     circle at top,
-    hsl(var(--hue-primary) calc(42% + (var(--phase-sat-boost) * var(--fx-intensity))) calc(19% + (var(--phase-light-boost) * 0.6 * var(--fx-intensity)))),
+    hsl(var(--hue-primary) calc(42% + var(--phase-sat-boost)) calc(19% + (var(--phase-light-boost) * 0.6))),
     color-mix(in srgb, hsl(var(--hue-secondary) 45% 11%), var(--bg) 58%)
   );
   color: var(--text);
@@ -39,14 +38,11 @@ body {
 body.tap-phase {
   background: radial-gradient(
     circle at top,
-    hsl(var(--hue-accent) calc(55% + (var(--phase-sat-boost) * var(--fx-intensity))) calc(25% + (var(--phase-light-boost) * var(--fx-intensity)))),
+    hsl(var(--hue-accent) calc(55% + var(--phase-sat-boost)) calc(25% + var(--phase-light-boost))),
     color-mix(in srgb, hsl(var(--hue-primary) 48% 11%), #09120c 35%)
   );
 }
 
-body.fx-low {
-  --fx-intensity: 0.35;
-}
 
 
 body::before,
@@ -79,14 +75,6 @@ body::after {
   transition: opacity 240ms ease;
 }
 
-body.note-flash {
-  animation: noteFlashBg 85ms ease-out;
-}
-
-@keyframes noteFlashBg {
-  from { filter: brightness(1.3); }
-  to { filter: brightness(1); }
-}
 
 @keyframes drift {
   from {
@@ -108,39 +96,6 @@ body.note-flash {
 }
 
 
-@keyframes fxParticleDecay {
-  0% {
-    opacity: 1;
-    transform: translate3d(calc(var(--fx-x, 0) * 1px), calc(var(--fx-y, 0) * 1px), 0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(calc((var(--fx-x, 0) + var(--fx-dx, 0)) * 1px), calc((var(--fx-y, 0) + var(--fx-dy, 0)) * 1px), 0) scale(0.2);
-  }
-}
-
-@keyframes fxRingDecay {
-  0% {
-    opacity: 0.58;
-    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), 0) scale(0.45);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), 0) scale(1.18);
-  }
-}
-
-@keyframes fxTrailDecay {
-  0% {
-    opacity: 0.48;
-    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), 0) scale(0.9);
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), 0) scale(1.03);
-  }
-}
-
 
 
 .app {
@@ -151,51 +106,6 @@ body.note-flash {
   z-index: 1;
 }
 
-
-#fxLayer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9;
-  overflow: hidden;
-  contain: strict;
-}
-
-.fx-particle,
-.fx-ring,
-.fx-trail {
-  position: absolute;
-  left: 0;
-  top: 0;
-  opacity: 0;
-  will-change: transform, opacity;
-}
-
-.fx-particle {
-  width: var(--fx-size, 8px);
-  height: var(--fx-size, 8px);
-  border-radius: 999px;
-  background: var(--fx-color, hsl(var(--hue-primary) 90% 64%));
-  transform: translate3d(calc(var(--fx-x, 0) * 1px), calc(var(--fx-y, 0) * 1px), 0) scale(1);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--fx-color, #fff), transparent 45%);
-}
-
-.fx-ring {
-  width: var(--fx-ring-size, 240px);
-  height: var(--fx-ring-size, 240px);
-  border-radius: 999px;
-  border: 2px solid color-mix(in srgb, var(--fx-color, #fff), white 10%);
-  transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), 0) scale(0.4);
-}
-
-.fx-trail {
-  width: var(--fx-trail-size, 320px);
-  height: var(--fx-trail-size, 320px);
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--fx-color, #fff), transparent 20%);
-  transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), 0) scale(0.88);
-  box-shadow: 0 0 24px color-mix(in srgb, var(--fx-color, #fff), transparent 62%);
-}
 
 
 .screen {
@@ -231,7 +141,7 @@ body.note-flash {
 .card {
   background: color-mix(
     in srgb,
-    hsl(var(--hue-secondary) calc(24% + (var(--phase-sat-boost) * 0.4 * var(--fx-intensity))) calc(20% + (var(--phase-light-boost) * 0.35 * var(--fx-intensity)))),
+    hsl(var(--hue-secondary) calc(24% + (var(--phase-sat-boost) * 0.4)) calc(20% + (var(--phase-light-boost) * 0.35))),
     var(--card) 72%
   );
   border: 1px solid color-mix(in srgb, hsl(var(--hue-accent) 78% 66%), transparent 75%);
@@ -401,7 +311,7 @@ summary {
   border: 4px solid color-mix(in srgb, white, transparent 65%);
   background: color-mix(
     in srgb,
-    hsl(var(--hue-primary) calc(35% + (var(--phase-sat-boost) * 0.5 * var(--fx-intensity))) calc(27% + (var(--phase-light-boost) * 0.35 * var(--fx-intensity)))),
+    hsl(var(--hue-primary) calc(35% + (var(--phase-sat-boost) * 0.5)) calc(27% + (var(--phase-light-boost) * 0.35))),
     hsl(var(--hue-secondary) 40% 24%) 38%
   );
   background-clip: padding-box;

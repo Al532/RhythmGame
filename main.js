@@ -206,7 +206,6 @@ const ui = {
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
   tapZone: document.getElementById('tapZone'),
-  tapZoneLabel: document.getElementById('tapZoneLabel'),
   fxCanvas: document.getElementById('fxCanvas'),
   fxPreset: document.getElementById('fxPreset'),
   fxIntensity: document.getElementById('fxIntensity'),
@@ -1415,7 +1414,7 @@ function getTapZoneLabel() {
 function updateStaticUI() {
   const isTapActive = (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating);
   ui.tapZone.classList.toggle('active', isTapActive);
-  ui.tapZoneLabel.textContent = getTapZoneLabel();
+  ui.tapZone.setAttribute('aria-label', `Tap input zone ${getTapZoneLabel()}`.trim());
   ui.gameLevelValue.textContent = String(state.isRunning ? state.liveLevel : state.level);
   document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
 }

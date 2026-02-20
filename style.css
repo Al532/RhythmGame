@@ -195,6 +195,7 @@ body:not(.fx-hue-shift-enabled) {
 }
 
 .start-button__liquid,
+.start-button__surface,
 .start-button__gloss {
   position: absolute;
   inset: 0;
@@ -202,9 +203,24 @@ body:not(.fx-hue-shift-enabled) {
 }
 
 .start-button__liquid {
+  --tilt-x: 0;
+  --tilt-y: 0;
+  --line-drift: 0%;
+  --line-speed: 1.15s;
   z-index: 1;
   transform-origin: 50% 54%;
   animation: liquidOrbit 5.8s ease-in-out infinite;
+  transform: translate(calc(var(--tilt-x) * 4px), calc(var(--tilt-y) * 4px));
+}
+
+.start-button::before {
+  content: '';
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, hsl(var(--hue-accent) 96% 74%), transparent 72%) 0%, transparent 70%);
+  filter: blur(12px);
 }
 
 .start-button__liquid::before,
@@ -230,8 +246,34 @@ body:not(.fx-hue-shift-enabled) {
   animation: liquidWave 4.6s ease-in-out infinite reverse;
 }
 
-.start-button__gloss {
+.start-button__surface {
+  --tilt-x: 0;
+  --tilt-y: 0;
   z-index: 2;
+  background:
+    radial-gradient(120% 85% at 50% 112%, color-mix(in srgb, hsl(var(--hue-secondary) 88% 70%), transparent 84%) 0%, transparent 60%),
+    linear-gradient(168deg, color-mix(in srgb, white, transparent 78%) 0%, color-mix(in srgb, hsl(var(--hue-primary) 86% 58%), transparent 90%) 65%);
+  mix-blend-mode: screen;
+  transform: translate(calc(var(--tilt-x) * 6px), calc(var(--tilt-y) * 6px));
+}
+
+.start-button__surface::before {
+  content: '';
+  position: absolute;
+  left: -16%;
+  right: -16%;
+  top: 49%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, white, transparent 22%) 20%, color-mix(in srgb, hsl(var(--hue-secondary) 98% 74%), transparent 18%) 50%, color-mix(in srgb, white, transparent 26%) 80%, transparent 100%);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, hsl(var(--hue-secondary) 100% 72%), transparent 46%));
+  opacity: 0.95;
+  animation: surfaceLineSweep var(--line-speed, 1.15s) linear infinite;
+  transform: translateX(var(--line-drift));
+}
+
+.start-button__gloss {
+  z-index: 3;
   background:
     radial-gradient(62% 42% at 34% 18%, color-mix(in srgb, white, transparent 52%) 0%, transparent 72%),
     radial-gradient(58% 35% at 68% 92%, color-mix(in srgb, white, transparent 86%) 0%, transparent 82%);
@@ -245,6 +287,12 @@ body:not(.fx-hue-shift-enabled) {
   50% {
     transform: translateY(-8%) rotate(-3deg) scaleX(1.06);
   }
+}
+
+@keyframes surfaceLineSweep {
+  0% { transform: translateX(calc(-14% + var(--line-drift))) scaleX(0.9); opacity: 0.72; }
+  50% { transform: translateX(calc(8% + var(--line-drift))) scaleX(1.08); opacity: 1; }
+  100% { transform: translateX(calc(26% + var(--line-drift))) scaleX(0.94); opacity: 0.78; }
 }
 
 @keyframes liquidOrbit {
@@ -507,7 +555,8 @@ summary {
 @media (prefers-reduced-motion: reduce) {
   .start-button__liquid,
   .start-button__liquid::before,
-  .start-button__liquid::after {
+  .start-button__liquid::after,
+  .start-button__surface::before {
     animation: none;
   }
 }

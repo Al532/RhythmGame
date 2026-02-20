@@ -89,7 +89,12 @@ const STORAGE_KEYS = {
   scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond',
   maxScore: 'rhythmTrainer.maxScore',
   fxPreset: 'rhythmTrainer.fxPreset',
-  fxIntensity: 'rhythmTrainer.fxIntensity'
+  fxIntensity: 'rhythmTrainer.fxIntensity',
+  fxToggleAmbient: 'rhythmTrainer.fxToggleAmbient',
+  fxToggleNoise: 'rhythmTrainer.fxToggleNoise',
+  fxToggleTapRing: 'rhythmTrainer.fxToggleTapRing',
+  fxToggleHueShift: 'rhythmTrainer.fxToggleHueShift',
+  fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost'
 };
 
 function getInterpolationFactor(level = LEVEL_DEFAULT) {
@@ -186,6 +191,11 @@ const ui = {
   fxPreset: document.getElementById('fxPreset'),
   fxIntensity: document.getElementById('fxIntensity'),
   fxIntensityValue: document.getElementById('fxIntensityValue'),
+  fxToggleAmbient: document.getElementById('fxToggleAmbient'),
+  fxToggleNoise: document.getElementById('fxToggleNoise'),
+  fxToggleTapRing: document.getElementById('fxToggleTapRing'),
+  fxToggleHueShift: document.getElementById('fxToggleHueShift'),
+  fxToggleWebglPost: document.getElementById('fxToggleWebglPost'),
   endpointInputs: [
     { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
     { input: document.getElementById('weightFirst2Level10'), value: document.getElementById('weightFirst2Level10Value'), key: 'first', level: 10, index: 0 },
@@ -462,6 +472,25 @@ function syncInterpolatedSettings({ updateBpmDisplay = true } = {}) {
   updateFxEngineState();
 }
 
+
+function readStoredFxFlag(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return true;
+    return raw === '1';
+  } catch (_error) {
+    return true;
+  }
+}
+
+function setFxToggleInputsFromState() {
+  ui.fxToggleAmbient.checked = state.visualFxFlags.ambientLayer;
+  ui.fxToggleNoise.checked = state.visualFxFlags.noise;
+  ui.fxToggleTapRing.checked = state.visualFxFlags.tapRing;
+  ui.fxToggleHueShift.checked = state.visualFxFlags.hueShift;
+  ui.fxToggleWebglPost.checked = state.visualFxFlags.webglPost;
+}
+
 function applyPersistedSettings() {
   state.startLevel = LEVEL_DEFAULT;
   state.level = LEVEL_DEFAULT;
@@ -538,6 +567,12 @@ function applyPersistedSettings() {
   if (storedFxIntensity !== null) {
     state.fxIntensity = clamp(Number(storedFxIntensity.toFixed(2)), 0, 1.2);
   }
+
+  state.visualFxFlags.ambientLayer = readStoredFxFlag(STORAGE_KEYS.fxToggleAmbient);
+  state.visualFxFlags.noise = readStoredFxFlag(STORAGE_KEYS.fxToggleNoise);
+  state.visualFxFlags.tapRing = readStoredFxFlag(STORAGE_KEYS.fxToggleTapRing);
+  state.visualFxFlags.hueShift = readStoredFxFlag(STORAGE_KEYS.fxToggleHueShift);
+  state.visualFxFlags.webglPost = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglPost);
 
   syncInterpolatedSettings();
 }
@@ -1442,6 +1477,11 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.maxScore);
     window.localStorage.removeItem(STORAGE_KEYS.fxPreset);
     window.localStorage.removeItem(STORAGE_KEYS.fxIntensity);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleAmbient);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleNoise);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleTapRing);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleHueShift);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglPost);
   } catch (_error) {
     // Ignore storage errors
   }
@@ -1492,6 +1532,7 @@ function clearLocalCache() {
   ui.fxPreset.value = state.fxPreset;
   ui.fxIntensity.value = String(state.fxIntensity);
   ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
+  setFxToggleInputsFromState();
   reapplyVisualFxFlags();
   updateHitWindowUI();
   updateHitToleranceUI();
@@ -1568,6 +1609,7 @@ ui.maxScore.value = String(state.maxScore);
 ui.fxPreset.value = state.fxPreset;
 ui.fxIntensity.value = String(state.fxIntensity);
 ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
+setFxToggleInputsFromState();
 
 ui.startLevel.addEventListener('input', (e) => {
   state.startLevel = clamp(Math.round(Number(e.target.value)), LEVEL_MIN, LEVEL_MAX);
@@ -1652,6 +1694,23 @@ ui.fxIntensity.addEventListener('input', (e) => {
   ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
   applyWebglFxFlags();
   saveSetting(STORAGE_KEYS.fxIntensity, state.fxIntensity);
+});
+
+
+const FX_TOGGLE_CONFIG = [
+  { input: ui.fxToggleAmbient, flag: 'ambientLayer', storageKey: STORAGE_KEYS.fxToggleAmbient },
+  { input: ui.fxToggleNoise, flag: 'noise', storageKey: STORAGE_KEYS.fxToggleNoise },
+  { input: ui.fxToggleTapRing, flag: 'tapRing', storageKey: STORAGE_KEYS.fxToggleTapRing },
+  { input: ui.fxToggleHueShift, flag: 'hueShift', storageKey: STORAGE_KEYS.fxToggleHueShift },
+  { input: ui.fxToggleWebglPost, flag: 'webglPost', storageKey: STORAGE_KEYS.fxToggleWebglPost }
+];
+
+FX_TOGGLE_CONFIG.forEach(({ input, flag, storageKey }) => {
+  input.addEventListener('change', (e) => {
+    state.visualFxFlags[flag] = e.target.checked;
+    saveSetting(storageKey, state.visualFxFlags[flag] ? 1 : 0);
+    reapplyVisualFxFlags();
+  });
 });
 
 ui.startGame.addEventListener('click', () => {

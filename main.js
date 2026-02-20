@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.22';
+const APP_VERSION = window.APP_VERSION || '1.0.23';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -190,6 +190,7 @@ const ui = {
 const state = {
   audioCtx: null,
   noiseBuffer: null,
+  masterGain: null,
   isRunning: false,
   screen: 'start',
   isCalibrating: false,
@@ -237,6 +238,7 @@ const state = {
   calibrationTargets: [],
   calibrationMatched: new Set(),
   calibrationDelays: [],
+  calibrationTimer: null,
 
   logEvents: [],
   tapMeasureStart: 0,
@@ -398,11 +400,25 @@ function unlockAudio() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     state.audioCtx = new Ctx();
     state.noiseBuffer = createNoiseBuffer(state.audioCtx, 1.0);
+    state.masterGain = state.audioCtx.createGain();
+    state.masterGain.gain.setValueAtTime(1, state.audioCtx.currentTime);
+    state.masterGain.connect(state.audioCtx.destination);
   }
 
   if (state.audioCtx.state === 'suspended') {
     state.audioCtx.resume();
   }
+}
+
+function getAudioOutputNode() {
+  return state.masterGain ?? state.audioCtx?.destination;
+}
+
+function setAudioMuted(isMuted) {
+  if (!state.audioCtx || !state.masterGain) return;
+  const now = state.audioCtx.currentTime;
+  state.masterGain.gain.cancelScheduledValues(now);
+  state.masterGain.gain.setValueAtTime(isMuted ? 0.0001 : 1, now);
 }
 
 function createNoiseBuffer(ctx, seconds) {
@@ -429,7 +445,7 @@ function playSnare(time) {
   gain.gain.setValueAtTime(DRUM_GAIN.snare, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + DRUM_TUNING.snare.decay);
 
-  source.connect(bp).connect(gain).connect(ctx.destination);
+  source.connect(bp).connect(gain).connect(getAudioOutputNode());
   source.start(time);
   source.stop(time + DRUM_TUNING.snare.decay + 0.02);
 }
@@ -445,7 +461,7 @@ function playKick(time) {
   gain.gain.setValueAtTime(DRUM_GAIN.kick, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + DRUM_TUNING.kick.decay);
 
-  osc.connect(gain).connect(ctx.destination);
+  osc.connect(gain).connect(getAudioOutputNode());
   osc.start(time);
   osc.stop(time + DRUM_TUNING.kick.decay + 0.02);
 }
@@ -463,7 +479,7 @@ function playHiHat(time) {
   gain.gain.setValueAtTime(DRUM_GAIN.hihat, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + DRUM_TUNING.hihat.decay);
 
-  src.connect(hp).connect(gain).connect(ctx.destination);
+  src.connect(hp).connect(gain).connect(getAudioOutputNode());
   src.start(time);
   src.stop(time + DRUM_TUNING.hihat.decay + 0.01);
 }
@@ -482,7 +498,7 @@ function playCymbalCrescendo(startTime, endTime) {
   gain.gain.exponentialRampToValueAtTime(DRUM_GAIN.cymbal, endTime);
   gain.gain.exponentialRampToValueAtTime(0.0001, endTime + 0.04);
 
-  src.connect(hp).connect(gain).connect(ctx.destination);
+  src.connect(hp).connect(gain).connect(getAudioOutputNode());
   src.start(startTime);
   src.stop(endTime + 0.05);
 }
@@ -884,6 +900,7 @@ function scheduleLoop() {
 function startEngine() {
   if (!state.audioCtx || state.isCalibrating || state.isRunning) return;
 
+  setAudioMuted(false);
   state.isRunning = true;
   state.level = state.startLevel;
   state.liveLevel = state.startLevel;
@@ -932,6 +949,7 @@ function startEngine() {
 function stopEngine() {
   state.isRunning = false;
   state.isIntroduction = false;
+  setAudioMuted(true);
   if (state.scheduleTimer) {
     clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
@@ -948,6 +966,25 @@ function stopEngine() {
   state.liveRepetition = 1;
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
+  updateStaticUI();
+}
+
+function stopCalibration({ clearMessage = false } = {}) {
+  if (!state.isCalibrating) return;
+
+  state.isCalibrating = false;
+  state.livePhase = PHASE.LISTEN;
+  if (state.calibrationTimer !== null) {
+    clearTimeout(state.calibrationTimer);
+    state.calibrationTimer = null;
+  }
+  state.calibrationTargets = [];
+  state.calibrationMatched = new Set();
+  state.calibrationDelays = [];
+  setAudioMuted(true);
+  if (clearMessage) {
+    ui.calibrationResult.textContent = 'Calibration arrêtée.';
+  }
   updateStaticUI();
 }
 
@@ -1047,6 +1084,7 @@ function startCalibration() {
   unlockAudio();
   if (!state.audioCtx || state.isRunning || state.isCalibrating) return;
 
+  setAudioMuted(false);
   showGameScreen();
   state.isCalibrating = true;
   state.livePhase = PHASE.CALIBRATION;
@@ -1068,10 +1106,12 @@ function startCalibration() {
   updateStaticUI();
 
   const calibrationDurationMs = (CALIBRATION_BEATS * beatDur * 1000) + 300;
-  setTimeout(() => {
+  state.calibrationTimer = setTimeout(() => {
+    state.calibrationTimer = null;
     state.isCalibrating = false;
     state.livePhase = PHASE.LISTEN;
     applyCalibrationResult();
+    setAudioMuted(true);
     updateStaticUI();
     showStartScreen();
   }, calibrationDurationMs);
@@ -1339,6 +1379,7 @@ ui.startGame.addEventListener('click', () => {
 });
 
 ui.stopGame.addEventListener('click', () => {
+  stopCalibration({ clearMessage: true });
   stopEngine();
   showStartScreen();
 });

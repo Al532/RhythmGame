@@ -90,6 +90,10 @@ body::after {
   transition: opacity 240ms ease;
 }
 
+body:not(.fx-css-noise-enabled)::after {
+  opacity: 0;
+}
+
 
 @keyframes drift {
   from {

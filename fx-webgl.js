@@ -329,6 +329,7 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     preset: FX_PRESETS[preset] ? preset : 'minimal',
     postIntensity: Math.max(0, Math.min(1.5, Number(intensity) || 0.8)),
     limiter: 1.0,
+    noiseEnabled: true,
     fpsAverage: 60,
     lowFpsMode: false
   };
@@ -424,7 +425,7 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     gl.uniform1f(postUniforms.postIntensity, state.postIntensity);
     gl.uniform1f(postUniforms.bloomStrength, preset.bloom);
     gl.uniform1f(postUniforms.chromaticStrength, preset.chromatic);
-    gl.uniform1f(postUniforms.noiseStrength, preset.noise);
+    gl.uniform1f(postUniforms.noiseStrength, state.noiseEnabled ? preset.noise : 0);
     gl.uniform1f(postUniforms.enableBloom, expensiveAllowed ? 1 : 0);
     gl.uniform1f(postUniforms.enableChromatic, expensiveAllowed ? 1 : 0.35);
     gl.uniform1f(postUniforms.limiter, state.limiter);
@@ -469,6 +470,9 @@ export function createWebglFx({ canvas, safeMode = false, preset = 'minimal', in
     },
     setPostIntensity(value) {
       state.postIntensity = Math.max(0, Math.min(1.5, Number(value) || state.postIntensity));
+    },
+    setNoiseEnabled(enabled) {
+      state.noiseEnabled = Boolean(enabled);
     },
     setLimiter(value) {
       state.limiter = Math.max(0.35, Math.min(1.15, Number(value) || state.limiter));

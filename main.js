@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '43';
+const RUNTIME_ASSET_VERSION = '44';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -1885,25 +1885,19 @@ FX_TOGGLE_CONFIG.forEach(({ input, flag, storageKey }) => {
   });
 });
 
-function updateStartButtonDynamics() {
+function updateTapZoneDynamics() {
+  if (!ui.tapZone) return;
   const tiltX = clamp((state.pointerTiltX * 0.6) + (state.accelTiltX * 0.4), -1, 1);
   const tiltY = clamp((state.pointerTiltY * 0.6) + (state.accelTiltY * 0.4), -1, 1);
-  const liquid = ui.startButtonLiquid;
-  if (!liquid) return;
 
-  liquid.style.setProperty('--tilt-x', tiltX.toFixed(3));
-  liquid.style.setProperty('--tilt-y', tiltY.toFixed(3));
-  liquid.style.setProperty('--line-drift', `${(tiltX * 22).toFixed(1)}%`);
-  liquid.style.setProperty('--line-speed', `${(1.05 + (Math.abs(tiltX) * 0.95)).toFixed(2)}s`);
-
-  if (ui.startButtonSurface) {
-    ui.startButtonSurface.style.setProperty('--tilt-x', tiltX.toFixed(3));
-    ui.startButtonSurface.style.setProperty('--tilt-y', tiltY.toFixed(3));
-  }
+  ui.tapZone.style.setProperty('--tap-tilt-x', tiltX.toFixed(3));
+  ui.tapZone.style.setProperty('--tap-tilt-y', tiltY.toFixed(3));
+  ui.tapZone.style.setProperty('--tap-line-drift', `${(tiltX * 22).toFixed(1)}%`);
+  ui.tapZone.style.setProperty('--tap-line-speed', `${(1.05 + (Math.abs(tiltX) * 0.95)).toFixed(2)}s`);
 }
 
-function trackPointerTilt(event) {
-  const buttonRect = ui.startGame?.getBoundingClientRect();
+function trackTapZonePointerTilt(event) {
+  const buttonRect = ui.tapZone?.getBoundingClientRect();
   if (!buttonRect) return;
 
   const centerX = buttonRect.left + (buttonRect.width / 2);
@@ -1913,13 +1907,13 @@ function trackPointerTilt(event) {
 
   state.pointerTiltX = clamp(normX, -1, 1);
   state.pointerTiltY = clamp(normY, -1, 1);
-  updateStartButtonDynamics();
+  updateTapZoneDynamics();
 }
 
-function resetPointerTilt() {
+function resetTapZonePointerTilt() {
   state.pointerTiltX = 0;
   state.pointerTiltY = 0;
-  updateStartButtonDynamics();
+  updateTapZoneDynamics();
 }
 
 function requestDeviceMotionAccess() {
@@ -1944,7 +1938,7 @@ function handleDeviceMotion(event) {
 
   state.accelTiltX = clamp(x / 8, -1, 1);
   state.accelTiltY = clamp((-y) / 8, -1, 1);
-  updateStartButtonDynamics();
+  updateTapZoneDynamics();
 }
 
 ui.startGame.addEventListener('click', () => {
@@ -1981,9 +1975,9 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
-window.addEventListener('pointermove', trackPointerTilt, { passive: true });
-ui.startGame.addEventListener('pointerleave', resetPointerTilt);
-ui.startGame.addEventListener('click', requestDeviceMotionAccess, { once: true });
+ui.tapZone.addEventListener('pointermove', trackTapZonePointerTilt, { passive: true });
+ui.tapZone.addEventListener('pointerleave', resetTapZonePointerTilt);
+ui.tapZone.addEventListener('click', requestDeviceMotionAccess, { once: true });
 window.addEventListener('devicemotion', handleDeviceMotion, { passive: true });
 
 window.addEventListener('resize', () => {
@@ -2003,5 +1997,5 @@ updateScoreUI();
 updateVisualFx(performance.now(), { force: true });
 showStartScreen();
 ui.appVersion.textContent = `v${APP_VERSION}`;
-updateStartButtonDynamics();
+updateTapZoneDynamics();
 initializeFxEngine();

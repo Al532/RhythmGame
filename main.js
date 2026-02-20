@@ -175,6 +175,8 @@ const ui = {
   gameScreen: document.getElementById('gameScreen'),
   resultScreen: document.getElementById('resultScreen'),
   startGame: document.getElementById('startGame'),
+  startButtonLiquid: document.querySelector('.start-button__liquid'),
+  startButtonSurface: document.querySelector('.start-button__surface'),
   stopGame: document.getElementById('stopGame'),
   backToMenu: document.getElementById('backToMenu'),
   startLevel: document.getElementById('startLevel'),

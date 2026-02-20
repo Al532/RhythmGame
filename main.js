@@ -271,9 +271,18 @@ function createCssOnlyFxFallback() {
     setLevel() {},
     setPhase() {},
     pulseHit() {},
+    setSafeMode() {},
     resize() {},
     destroy() {}
   };
+}
+
+function isSafeFxPreferred() {
+  const reduceMotion = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduceContrast = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-contrast: less)').matches;
+  return reduceMotion || reduceContrast || document.body.classList.contains('fx-low');
 }
 
 function normalizePhaseForFx(phase) {
@@ -308,7 +317,7 @@ async function initializeFxEngine() {
   try {
     const version = encodeURIComponent(APP_VERSION);
     const fxModule = await import(`./fx-webgl.js?v=${version}`);
-    const engine = fxModule?.createWebglFx?.({ canvas }) ?? null;
+    const engine = fxModule?.createWebglFx?.({ canvas, safeMode: isSafeFxPreferred() }) ?? null;
 
     if (!engine) {
       state.fxEngine = fallback;
@@ -318,6 +327,7 @@ async function initializeFxEngine() {
 
     state.fxEngine = engine;
     applyFxMode({ webglEnabled: true });
+    state.fxEngine.setSafeMode(isSafeFxPreferred());
     updateFxEngineState();
     state.fxEngine.resize(window.innerWidth, window.innerHeight);
   } catch (_error) {

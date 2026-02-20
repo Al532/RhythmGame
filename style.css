@@ -108,6 +108,41 @@ body.note-flash {
 }
 
 
+@keyframes fxParticleDecay {
+  0% {
+    opacity: 1;
+    transform: translate3d(calc(var(--fx-x, 0) * 1px), calc(var(--fx-y, 0) * 1px), 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc((var(--fx-x, 0) + var(--fx-dx, 0)) * 1px), calc((var(--fx-y, 0) + var(--fx-dy, 0)) * 1px), 0) scale(0.2);
+  }
+}
+
+@keyframes fxRingDecay {
+  0% {
+    opacity: 0.58;
+    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), 0) scale(0.45);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), 0) scale(1.18);
+  }
+}
+
+@keyframes fxTrailDecay {
+  0% {
+    opacity: 0.48;
+    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), 0) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), 0) scale(1.03);
+  }
+}
+
+
+
 .app {
   width: min(900px, 100%);
   margin: 0 auto;
@@ -115,6 +150,53 @@ body.note-flash {
   position: relative;
   z-index: 1;
 }
+
+
+#fxLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  overflow: hidden;
+  contain: strict;
+}
+
+.fx-particle,
+.fx-ring,
+.fx-trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.fx-particle {
+  width: var(--fx-size, 8px);
+  height: var(--fx-size, 8px);
+  border-radius: 999px;
+  background: var(--fx-color, hsl(var(--hue-primary) 90% 64%));
+  transform: translate3d(calc(var(--fx-x, 0) * 1px), calc(var(--fx-y, 0) * 1px), 0) scale(1);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--fx-color, #fff), transparent 45%);
+}
+
+.fx-ring {
+  width: var(--fx-ring-size, 240px);
+  height: var(--fx-ring-size, 240px);
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--fx-color, #fff), white 10%);
+  transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-ring-size, 240px) / 2)), 0) scale(0.4);
+}
+
+.fx-trail {
+  width: var(--fx-trail-size, 320px);
+  height: var(--fx-trail-size, 320px);
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--fx-color, #fff), transparent 20%);
+  transform: translate3d(calc((var(--fx-x, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), calc((var(--fx-y, 0) * 1px) - (var(--fx-trail-size, 320px) / 2)), 0) scale(0.88);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--fx-color, #fff), transparent 62%);
+}
+
 
 .screen {
   display: grid;

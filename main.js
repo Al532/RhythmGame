@@ -2,6 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
+const RUNTIME_ASSET_VERSION = '36';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -373,7 +374,7 @@ async function initializeFxEngine() {
   }
 
   try {
-    const fxModule = await import(window.withAppVersion('./fx-webgl.js'));
+    const fxModule = await import(`./fx-webgl.js?v=${RUNTIME_ASSET_VERSION}`);
     const engine = fxModule?.createWebglFx?.({ canvas, safeMode: isSafeFxPreferred() }) ?? null;
 
     if (!engine) {

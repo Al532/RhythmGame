@@ -2,9 +2,9 @@
 
 ## Asset versioning convention
 
-Le cache-busting est piloté par une seule constante globale `window.APP_VERSION` définie dans `index.html`.
+Le cache-busting est manuel et repose sur un numéro de version numérique en dur dans les URLs d'assets.
 
-- Tous les assets runtime JS/CSS déclarés avec `data-asset` passent par `window.withAppVersion(assetPath)` pour injecter automatiquement `?v=${encodeURIComponent(window.APP_VERSION)}`.
-- Cette convention couvre `style.css`, `main.js`, `fx-webgl.js`, et `fx.css` si ce fichier est ajouté plus tard.
-- `main.js` lit la même valeur (`window.APP_VERSION`) pour afficher la version sur l'écran de démarrage et pour importer `fx-webgl.js` avec le même cache-busting.
-- À chaque modification runtime JS/CSS, il faut incrémenter `window.APP_VERSION` dans `index.html` pour forcer GitHub Pages (et les navigateurs) à charger les assets frais.
+- Dans `index.html`, tous les assets runtime JS/CSS doivent être appelés avec le même suffixe `?v=<nombre>` (ex: `style.css?v=36`, `main.js?v=36`, `fx-webgl.js?v=36`).
+- Dans `main.js`, l'import dynamique de `fx-webgl.js` doit utiliser la même version numérique en dur pour rester aligné avec le HTML.
+- `window.APP_VERSION` conserve la même valeur (ici `36`) pour l'affichage utilisateur de la build.
+- À chaque modification runtime JS/CSS, il faut incrémenter ce numéro partout dans le HTML (et dans l'import dynamique) pour forcer GitHub Pages et mobile à recharger les assets frais.

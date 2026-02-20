@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '51';
+const RUNTIME_ASSET_VERSION = '52';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -201,6 +201,7 @@ const ui = {
   testLog: document.getElementById('testLog'),
   tapZone: document.getElementById('tapZone'),
   tapZoneText: document.getElementById('tapZoneText'),
+  tapJudgement: document.getElementById('tapJudgement'),
   fxCanvas: document.getElementById('fxCanvas'),
   fxPreset: document.getElementById('fxPreset'),
   fxIntensity: document.getElementById('fxIntensity'),
@@ -281,6 +282,7 @@ const state = {
   scoreRegenTimer: null,
   patternFlashTimer: null,
   tapLabelPulseTimer: null,
+  tapJudgementTimer: null,
   listenSaturationStartTimer: null,
   listenSaturationEndTimer: null,
   visualPhase: 0,
@@ -1016,6 +1018,32 @@ function triggerTapLabelPulse() {
   }, 260);
 }
 
+function showTapJudgement(category) {
+  if (!ui.tapJudgement) return;
+
+  const judgementByCategory = {
+    [HIT_CATEGORY.PERFECT]: 'PERFECT',
+    [HIT_CATEGORY.CORRECT]: 'GOOD',
+    [HIT_CATEGORY.MISSED]: 'MISS'
+  };
+
+  const judgement = judgementByCategory[category];
+  if (!judgement) return;
+
+  ui.tapJudgement.textContent = judgement;
+  ui.tapJudgement.classList.remove('perfect', 'good', 'miss', 'is-visible');
+  ui.tapJudgement.classList.add(judgement.toLowerCase(), 'is-visible');
+
+  if (state.tapJudgementTimer !== null) {
+    clearTimeout(state.tapJudgementTimer);
+  }
+
+  state.tapJudgementTimer = setTimeout(() => {
+    ui.tapJudgement.classList.remove('is-visible', 'perfect', 'good', 'miss');
+    state.tapJudgementTimer = null;
+  }, 500);
+}
+
 function scheduleListenSaturationRelease(measureStart, bpmForMeasure) {
   clearListenSaturationTimers();
 
@@ -1063,11 +1091,19 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
 
     if (phase === PHASE.TAP) {
       clearListenSaturationTimers();
+      if (ui.tapJudgement) {
+        ui.tapJudgement.textContent = '';
+        ui.tapJudgement.classList.remove('is-visible', 'perfect', 'good', 'miss');
+      }
       ui.tapZone.classList.remove('listen-muted', 'listen-release', 'tap-hit-pulse');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       stopScoreRecoveryAnimation();
       prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure);
     } else if (phase === PHASE.LISTEN) {
+      if (ui.tapJudgement) {
+        ui.tapJudgement.textContent = '';
+        ui.tapJudgement.classList.remove('is-visible', 'perfect', 'good', 'miss');
+      }
       appendLog(
         `[LISTEN start] lvl=${levelForMeasure} rep=${repetition}/${REPS_PER_PATTERN} bpm=${bpmForMeasure} start=${formatSeconds(measureStart)} pattern=${formatPattern(patternForMeasure)}`
       );
@@ -1090,12 +1126,6 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
         triggerPatternHitFlash();
         if (state.livePhase === PHASE.LISTEN) {
           triggerTapZoneFeedback({ vibrate: true });
-        } else if (state.livePhase === PHASE.TAP) {
-          const anticipationMs = Math.max(40, Math.round((subdivDur * 1000) * 0.35));
-          setTimeout(() => {
-            if (!state.isRunning || state.livePhase !== PHASE.TAP) return;
-            triggerTapLabelPulse();
-          }, Math.max(0, feedbackDelayMs - anticipationMs));
         }
       }, feedbackDelayMs);
     }
@@ -1339,6 +1369,10 @@ function stopEngine() {
   state.liveRepetition = 1;
   reapplyVisualFxFlags();
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release', 'tap-hit-pulse');
+  if (ui.tapJudgement) {
+    ui.tapJudgement.textContent = '';
+    ui.tapJudgement.classList.remove('is-visible', 'perfect', 'good', 'miss');
+  }
   ui.tapZone.classList.remove('pattern-hit-flash');
   if (state.patternFlashTimer !== null) {
     clearTimeout(state.patternFlashTimer);
@@ -1347,6 +1381,10 @@ function stopEngine() {
   if (state.tapLabelPulseTimer !== null) {
     clearTimeout(state.tapLabelPulseTimer);
     state.tapLabelPulseTimer = null;
+  }
+  if (state.tapJudgementTimer !== null) {
+    clearTimeout(state.tapJudgementTimer);
+    state.tapJudgementTimer = null;
   }
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
   updateStaticUI();
@@ -1585,6 +1623,7 @@ function recordTap() {
       consumeScorePoint('tap after TAP phase end');
       pulseIntensity = 0.28;
       hitCategory = HIT_CATEGORY.MISSED;
+      showTapJudgement(hitCategory);
       triggerTapZoneFeedback({ vibrate: true, category: hitCategory });
       state.fxEngine?.pulseHit(pulseIntensity, { perfect: false, category: hitCategory });
       return;
@@ -1607,6 +1646,8 @@ function recordTap() {
         const isPerfect = Math.abs(errorSec) <= perfectWindowSec;
         pulseIntensity = isPerfect ? 1.25 : 1;
         hitCategory = isPerfect ? HIT_CATEGORY.PERFECT : HIT_CATEGORY.CORRECT;
+        triggerTapLabelPulse();
+        showTapJudgement(hitCategory);
         appendLog(
           `${isPerfect ? '[PERFECT]' : '[OK]'} note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
@@ -1614,6 +1655,7 @@ function recordTap() {
         hit.correct = false;
         pulseIntensity = 0.35;
         hitCategory = HIT_CATEGORY.MISSED;
+        showTapJudgement(hitCategory);
         appendLog(
           `[ERR timing] note[${hit.idx + 1}] tap=${formatSeconds(adjustedTapTime)} target=${formatSeconds(hit.targetTime)} delta=${formatErrorMs(errorSec * 1000)}`
         );
@@ -1639,6 +1681,7 @@ function recordTap() {
       consumeScorePoint(scoreReason);
       pulseIntensity = 0.28;
       hitCategory = HIT_CATEGORY.MISSED;
+      showTapJudgement(hitCategory);
     }
   } else {
     return;

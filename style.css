@@ -473,6 +473,42 @@ summary {
   opacity: 0.9;
 }
 
+
+.tap-judgement {
+  position: absolute;
+  top: 0.35rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  margin: 0;
+  min-height: 1.2em;
+  font-size: clamp(1.1rem, 4vw, 1.7rem);
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 160ms ease;
+  text-shadow: 0 0 16px color-mix(in srgb, black, transparent 40%);
+  z-index: 8;
+}
+
+.tap-judgement.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.tap-judgement.perfect {
+  color: #9bffcb;
+}
+
+.tap-judgement.good {
+  color: #8dc5ff;
+}
+
+.tap-judgement.miss {
+  color: #ff8ca0;
+}
+
 .tap-zone {
   --score-color: var(--ok);
   --fill-height: 100%;

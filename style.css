@@ -16,6 +16,7 @@
   --noise-opacity: 0.045;
   --tap-ring-opacity: 0;
   --tap-ring-scale: 0.92;
+  --bpm-beat-duration: 1s;
 }
 
 * {
@@ -37,6 +38,7 @@ body.fx-background-enabled {
     hsl(var(--hue-primary) calc(42% + var(--phase-sat-boost)) calc(19% + (var(--phase-light-boost) * 0.6))),
     color-mix(in srgb, hsl(var(--hue-secondary) 45% 11%), var(--bg) 58%)
   );
+  animation: backgroundBpmPulse var(--bpm-beat-duration) ease-in-out infinite;
 }
 
 
@@ -129,6 +131,47 @@ body:not(.fx-hue-shift-enabled) {
   }
   50% {
     transform: translate(-50%, -50%) scale(calc(var(--tap-ring-scale) + 0.055));
+  }
+}
+
+
+@keyframes patternHitFlash {
+  0% {
+    filter: brightness(1.16) saturate(1.15);
+    box-shadow:
+      inset 0 0 52px color-mix(in srgb, white, transparent 78%),
+      inset 0 -24px 30px color-mix(in srgb, hsl(var(--hue-accent) 72% 40%), transparent 76%),
+      0 0 0 8px color-mix(in srgb, hsl(var(--hue-accent) 96% 72%), transparent 84%),
+      0 20px 48px color-mix(in srgb, black, transparent 58%);
+  }
+  100% {
+    filter: brightness(1) saturate(var(--tap-saturation));
+    box-shadow:
+      inset 0 0 42px color-mix(in srgb, white, transparent 88%),
+      inset 0 -24px 30px color-mix(in srgb, hsl(var(--hue-accent) 72% 40%), transparent 76%),
+      0 16px 42px color-mix(in srgb, black, transparent 62%);
+  }
+}
+
+@keyframes bpmTextPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    text-shadow: 0 1px 6px color-mix(in srgb, black, transparent 62%);
+  }
+  50% {
+    transform: scale(1.08);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--danger), transparent 35%);
+  }
+}
+
+@keyframes backgroundBpmPulse {
+  0%,
+  100% {
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    filter: saturate(1.08) brightness(1.04);
   }
 }
 
@@ -462,11 +505,15 @@ summary {
   position: absolute;
   top: 0;
   left: 0;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   padding: 0.35rem 0.6rem;
   border-radius: 0 0 10px 0;
   border: 1px solid color-mix(in srgb, var(--danger), transparent 55%);
   background: color-mix(in srgb, var(--danger), transparent 84%);
+  transform-origin: top left;
+  animation: bpmTextPulse var(--bpm-beat-duration) ease-in-out infinite;
 }
 
 .game-level {
@@ -640,7 +687,7 @@ summary {
   z-index: 7;
   display: grid;
   place-items: center;
-  font-size: clamp(1.2rem, 4.5vw, 2rem);
+  font-size: clamp(1.45rem, 5.1vw, 2.35rem);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -659,6 +706,9 @@ summary {
 
 .tap-zone.active { border-color: color-mix(in srgb, var(--ok), white 25%); }
 .tap-zone.pressed { transform: scale(0.98); }
+.tap-zone.pattern-hit-flash {
+  animation: patternHitFlash 150ms ease-out;
+}
 .tap-zone.perfect {
   border-color: color-mix(in srgb, #69f4a6, white 20%);
   box-shadow: 0 0 0 8px color-mix(in srgb, #69f4a6, transparent 82%), 0 0 42px color-mix(in srgb, #69f4a6, transparent 55%);
@@ -694,7 +744,10 @@ summary {
   .tap-zone__liquid::before,
   .tap-zone__liquid::after,
   .tap-zone__score-liquid::before,
-  .tap-zone__caustics {
+  .tap-zone__caustics,
+  .tap-zone.pattern-hit-flash,
+  .stop-button,
+  body.fx-background-enabled {
     animation: none;
   }
 }

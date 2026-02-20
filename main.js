@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '46';
+const RUNTIME_ASSET_VERSION = '47';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -288,6 +288,7 @@ const state = {
   scoreRecoveryFrame: null,
   scoreStepTimer: null,
   scoreRegenTimer: null,
+  patternFlashTimer: null,
   listenSaturationStartTimer: null,
   listenSaturationEndTimer: null,
   visualPhase: 0,
@@ -991,6 +992,31 @@ function clearListenSaturationTimers() {
   }
 }
 
+function getBeatDurationSeconds(bpm = state.bpm) {
+  const safeBpm = Math.max(BPM_MIN, Number.isFinite(bpm) ? bpm : BPM_LEVEL1_DEFAULT);
+  return 60 / safeBpm;
+}
+
+function syncBpmCssVariables(bpm = state.bpm) {
+  const beatDurationSeconds = getBeatDurationSeconds(bpm);
+  document.documentElement.style.setProperty('--bpm-beat-duration', `${beatDurationSeconds.toFixed(3)}s`);
+}
+
+function triggerPatternHitFlash() {
+  if (!ui.tapZone) return;
+  ui.tapZone.classList.remove('pattern-hit-flash');
+  // Force reflow so rapid successive hits can retrigger the flash.
+  void ui.tapZone.offsetWidth;
+  ui.tapZone.classList.add('pattern-hit-flash');
+  if (state.patternFlashTimer !== null) {
+    clearTimeout(state.patternFlashTimer);
+  }
+  state.patternFlashTimer = setTimeout(() => {
+    ui.tapZone.classList.remove('pattern-hit-flash');
+    state.patternFlashTimer = null;
+  }, 150);
+}
+
 function scheduleListenSaturationRelease(measureStart, bpmForMeasure) {
   clearListenSaturationTimers();
 
@@ -1031,6 +1057,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
     }
 
     updateStaticUI();
+    syncBpmCssVariables(state.liveBpm);
     state.fxEngine?.setBpm(bpmForMeasure);
     state.fxEngine?.setLevel(levelForMeasure);
     state.fxEngine?.setPhase(normalizePhaseForFx(phase));
@@ -1061,6 +1088,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
       const feedbackDelayMs = Math.max(0, ((eventTime - state.audioCtx.currentTime) * 1000) + state.latencyOffsetMs);
       setTimeout(() => {
         if (!state.isRunning) return;
+        triggerPatternHitFlash();
         if (state.livePhase === PHASE.LISTEN) {
           triggerTapZoneFeedback({ vibrate: true });
         }
@@ -1306,6 +1334,11 @@ function stopEngine() {
   state.liveRepetition = 1;
   reapplyVisualFxFlags();
   ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
+  ui.tapZone.classList.remove('pattern-hit-flash');
+  if (state.patternFlashTimer !== null) {
+    clearTimeout(state.patternFlashTimer);
+    state.patternFlashTimer = null;
+  }
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
   updateStaticUI();
 }
@@ -1422,6 +1455,7 @@ function updateStaticUI() {
   }
   ui.gameLevelValue.textContent = String(state.isRunning ? state.liveLevel : state.level);
   document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
+  syncBpmCssVariables(state.isRunning ? state.liveBpm : state.bpm);
 }
 
 function getOldestPatternNoteWithinSubdiv(adjustedTapTime) {

@@ -1146,11 +1146,10 @@ function scheduleLoop() {
           }
           initializeLevelPatternSequence();
           appendLog(`[NEW pattern] lvl=${state.level} pattern=${formatPattern(state.pattern)}`);
-          continue;
+        } else {
+          moveToNextPatternInLevel();
+          appendLog(`[NEW pattern] lvl=${state.level} pattern=${formatPattern(state.pattern)}`);
         }
-
-        moveToNextPatternInLevel();
-        appendLog(`[NEW pattern] lvl=${state.level} pattern=${formatPattern(state.pattern)}`);
       }
     }
 

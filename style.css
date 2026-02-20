@@ -195,6 +195,7 @@ body:not(.fx-hue-shift-enabled) {
 }
 
 .start-button__liquid,
+.start-button__surface,
 .start-button__gloss {
   position: absolute;
   inset: 0;
@@ -202,9 +203,24 @@ body:not(.fx-hue-shift-enabled) {
 }
 
 .start-button__liquid {
+  --tilt-x: 0;
+  --tilt-y: 0;
+  --line-drift: 0%;
+  --line-speed: 1.15s;
   z-index: 1;
   transform-origin: 50% 54%;
   animation: liquidOrbit 5.8s ease-in-out infinite;
+  transform: translate(calc(var(--tilt-x) * 4px), calc(var(--tilt-y) * 4px));
+}
+
+.start-button::before {
+  content: '';
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, hsl(var(--hue-accent) 96% 74%), transparent 72%) 0%, transparent 70%);
+  filter: blur(12px);
 }
 
 .start-button__liquid::before,
@@ -230,8 +246,34 @@ body:not(.fx-hue-shift-enabled) {
   animation: liquidWave 4.6s ease-in-out infinite reverse;
 }
 
-.start-button__gloss {
+.start-button__surface {
+  --tilt-x: 0;
+  --tilt-y: 0;
   z-index: 2;
+  background:
+    radial-gradient(120% 85% at 50% 112%, color-mix(in srgb, hsl(var(--hue-secondary) 88% 70%), transparent 84%) 0%, transparent 60%),
+    linear-gradient(168deg, color-mix(in srgb, white, transparent 78%) 0%, color-mix(in srgb, hsl(var(--hue-primary) 86% 58%), transparent 90%) 65%);
+  mix-blend-mode: screen;
+  transform: translate(calc(var(--tilt-x) * 6px), calc(var(--tilt-y) * 6px));
+}
+
+.start-button__surface::before {
+  content: '';
+  position: absolute;
+  left: -16%;
+  right: -16%;
+  top: 49%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, white, transparent 22%) 20%, color-mix(in srgb, hsl(var(--hue-secondary) 98% 74%), transparent 18%) 50%, color-mix(in srgb, white, transparent 26%) 80%, transparent 100%);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, hsl(var(--hue-secondary) 100% 72%), transparent 46%));
+  opacity: 0.95;
+  animation: surfaceLineSweep var(--line-speed, 1.15s) linear infinite;
+  transform: translateX(var(--line-drift));
+}
+
+.start-button__gloss {
+  z-index: 3;
   background:
     radial-gradient(62% 42% at 34% 18%, color-mix(in srgb, white, transparent 52%) 0%, transparent 72%),
     radial-gradient(58% 35% at 68% 92%, color-mix(in srgb, white, transparent 86%) 0%, transparent 82%);
@@ -245,6 +287,12 @@ body:not(.fx-hue-shift-enabled) {
   50% {
     transform: translateY(-8%) rotate(-3deg) scaleX(1.06);
   }
+}
+
+@keyframes surfaceLineSweep {
+  0% { transform: translateX(calc(-14% + var(--line-drift))) scaleX(0.9); opacity: 0.72; }
+  50% { transform: translateX(calc(8% + var(--line-drift))) scaleX(1.08); opacity: 1; }
+  100% { transform: translateX(calc(26% + var(--line-drift))) scaleX(0.94); opacity: 0.78; }
 }
 
 @keyframes liquidOrbit {
@@ -432,6 +480,10 @@ summary {
   --fill-height: 100%;
   --tap-saturation: 1;
   --tap-sat-transition-ms: 0ms;
+  --tap-tilt-x: 0;
+  --tap-tilt-y: 0;
+  --tap-line-drift: 0%;
+  --tap-line-speed: 1.15s;
   position: relative;
   overflow: hidden;
   width: min(360px, 85vw);
@@ -451,12 +503,102 @@ summary {
   letter-spacing: 0.03em;
   isolation: isolate;
   filter: saturate(var(--tap-saturation));
-  transition: transform 100ms ease, background 140ms ease, border-color 140ms ease, filter var(--tap-sat-transition-ms) linear;
+  box-shadow:
+    inset 0 0 26px color-mix(in srgb, white, transparent 84%),
+    inset 0 -14px 26px color-mix(in srgb, hsl(var(--hue-accent) 70% 42%), transparent 72%),
+    0 12px 36px color-mix(in srgb, black, transparent 68%);
+  transition: transform 100ms ease, background 140ms ease, border-color 140ms ease, box-shadow 160ms ease, filter var(--tap-sat-transition-ms) linear;
 }
+
+.tap-zone::after {
+  content: '';
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  z-index: -2;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, hsl(var(--hue-accent) 96% 74%), transparent 72%) 0%, transparent 70%);
+  filter: blur(12px);
+}
+
+.tap-zone__liquid,
+.tap-zone__surface,
+.tap-zone__gloss {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tap-zone__liquid {
+  z-index: 1;
+  transform-origin: 50% 54%;
+  animation: liquidOrbit 5.8s ease-in-out infinite;
+  transform: translate(calc(var(--tap-tilt-x) * 5px), calc(var(--tap-tilt-y) * 5px));
+}
+
+.tap-zone__liquid::before,
+.tap-zone__liquid::after {
+  content: '';
+  position: absolute;
+  border-radius: 46%;
+  filter: blur(1px);
+}
+
+.tap-zone__liquid::before {
+  inset: 42% -10% -28%;
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, white, transparent 52%) 0%, transparent 58%),
+    linear-gradient(170deg, color-mix(in srgb, hsl(var(--hue-accent) 95% 72%), transparent 36%) 0%, color-mix(in srgb, hsl(var(--hue-primary) 92% 44%), transparent 44%) 82%);
+  animation: liquidWave 3.2s ease-in-out infinite;
+}
+
+.tap-zone__liquid::after {
+  inset: 50% -4% -34%;
+  opacity: 0.75;
+  background: linear-gradient(182deg, color-mix(in srgb, hsl(var(--hue-secondary) 92% 78%), transparent 48%) 0%, color-mix(in srgb, hsl(var(--hue-accent) 95% 56%), transparent 50%) 100%);
+  animation: liquidWave 4.6s ease-in-out infinite reverse;
+}
+
+.tap-zone__surface {
+  z-index: 2;
+  background:
+    radial-gradient(120% 85% at 50% 112%, color-mix(in srgb, hsl(var(--hue-secondary) 88% 70%), transparent 84%) 0%, transparent 60%),
+    linear-gradient(168deg, color-mix(in srgb, white, transparent 78%) 0%, color-mix(in srgb, hsl(var(--hue-primary) 86% 58%), transparent 90%) 65%);
+  mix-blend-mode: screen;
+  transform: translate(calc(var(--tap-tilt-x) * 7px), calc(var(--tap-tilt-y) * 7px));
+}
+
+.tap-zone__surface::before {
+  content: '';
+  position: absolute;
+  left: -16%;
+  right: -16%;
+  top: 49%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, white, transparent 22%) 20%, color-mix(in srgb, hsl(var(--hue-secondary) 98% 74%), transparent 18%) 50%, color-mix(in srgb, white, transparent 26%) 80%, transparent 100%);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, hsl(var(--hue-secondary) 100% 72%), transparent 46%));
+  opacity: 0.95;
+  animation: surfaceLineSweep var(--tap-line-speed, 1.15s) linear infinite;
+  transform: translateX(var(--tap-line-drift));
+}
+
+.tap-zone__gloss {
+  z-index: 3;
+  background:
+    radial-gradient(62% 42% at 34% 18%, color-mix(in srgb, white, transparent 52%) 0%, transparent 72%),
+    radial-gradient(58% 35% at 68% 92%, color-mix(in srgb, white, transparent 86%) 0%, transparent 82%);
+}
+
 
 .tap-zone span {
   font-size: 2rem;
   font-weight: 700;
+}
+
+#tapZoneLabel {
+  position: relative;
+  z-index: 4;
+  text-shadow: 0 2px 10px color-mix(in srgb, black, transparent 65%);
 }
 
 .tap-zone.listen-muted {
@@ -473,7 +615,7 @@ summary {
   inset: auto 0 0;
   height: var(--fill-height);
   background: var(--score-color);
-  z-index: -1;
+  z-index: 0;
 }
 
 .tap-zone.active { border-color: color-mix(in srgb, var(--ok), white 25%); }
@@ -507,7 +649,12 @@ summary {
 @media (prefers-reduced-motion: reduce) {
   .start-button__liquid,
   .start-button__liquid::before,
-  .start-button__liquid::after {
+  .start-button__liquid::after,
+  .start-button__surface::before,
+  .tap-zone__liquid,
+  .tap-zone__liquid::before,
+  .tap-zone__liquid::after,
+  .tap-zone__surface::before {
     animation: none;
   }
 }

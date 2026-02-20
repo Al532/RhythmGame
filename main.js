@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '42';
+const RUNTIME_ASSET_VERSION = '44';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -310,7 +310,12 @@ const state = {
   fxWebglEnabled: false,
   fxPreset: 'minimal',
   fxIntensity: 0.8,
-  visualFxFlags: { ...DEFAULT_VISUAL_FX_FLAGS }
+  visualFxFlags: { ...DEFAULT_VISUAL_FX_FLAGS },
+  pointerTiltX: 0,
+  pointerTiltY: 0,
+  accelTiltX: 0,
+  accelTiltY: 0,
+  deviceMotionEnabled: false
 };
 
 
@@ -1878,6 +1883,62 @@ FX_TOGGLE_CONFIG.forEach(({ input, flag, storageKey }) => {
   });
 });
 
+function updateTapZoneDynamics() {
+  if (!ui.tapZone) return;
+  const tiltX = clamp((state.pointerTiltX * 0.6) + (state.accelTiltX * 0.4), -1, 1);
+  const tiltY = clamp((state.pointerTiltY * 0.6) + (state.accelTiltY * 0.4), -1, 1);
+
+  ui.tapZone.style.setProperty('--tap-tilt-x', tiltX.toFixed(3));
+  ui.tapZone.style.setProperty('--tap-tilt-y', tiltY.toFixed(3));
+  ui.tapZone.style.setProperty('--tap-line-drift', `${(tiltX * 22).toFixed(1)}%`);
+  ui.tapZone.style.setProperty('--tap-line-speed', `${(1.05 + (Math.abs(tiltX) * 0.95)).toFixed(2)}s`);
+}
+
+function trackTapZonePointerTilt(event) {
+  const buttonRect = ui.tapZone?.getBoundingClientRect();
+  if (!buttonRect) return;
+
+  const centerX = buttonRect.left + (buttonRect.width / 2);
+  const centerY = buttonRect.top + (buttonRect.height / 2);
+  const normX = (event.clientX - centerX) / Math.max(1, buttonRect.width / 2);
+  const normY = (event.clientY - centerY) / Math.max(1, buttonRect.height / 2);
+
+  state.pointerTiltX = clamp(normX, -1, 1);
+  state.pointerTiltY = clamp(normY, -1, 1);
+  updateTapZoneDynamics();
+}
+
+function resetTapZonePointerTilt() {
+  state.pointerTiltX = 0;
+  state.pointerTiltY = 0;
+  updateTapZoneDynamics();
+}
+
+function requestDeviceMotionAccess() {
+  if (!window.DeviceMotionEvent || typeof window.DeviceMotionEvent.requestPermission !== 'function') return;
+  window.DeviceMotionEvent.requestPermission()
+    .then((permission) => {
+      if (permission === 'granted') {
+        state.deviceMotionEnabled = true;
+      }
+    })
+    .catch(() => {
+      // Ignore denied or unsupported permission states
+    });
+}
+
+function handleDeviceMotion(event) {
+  const accel = event.accelerationIncludingGravity;
+  if (!accel) return;
+
+  const x = Number.isFinite(accel.x) ? accel.x : 0;
+  const y = Number.isFinite(accel.y) ? accel.y : 0;
+
+  state.accelTiltX = clamp(x / 8, -1, 1);
+  state.accelTiltY = clamp((-y) / 8, -1, 1);
+  updateTapZoneDynamics();
+}
+
 ui.startGame.addEventListener('click', () => {
   unlockAudio();
   showGameScreen();
@@ -1912,6 +1973,11 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('pointerdown', unlockAudio, { once: true });
+ui.tapZone.addEventListener('pointermove', trackTapZonePointerTilt, { passive: true });
+ui.tapZone.addEventListener('pointerleave', resetTapZonePointerTilt);
+ui.tapZone.addEventListener('click', requestDeviceMotionAccess, { once: true });
+window.addEventListener('devicemotion', handleDeviceMotion, { passive: true });
+
 window.addEventListener('resize', () => {
   state.fxEngine?.resize(window.innerWidth, window.innerHeight);
 });
@@ -1929,4 +1995,5 @@ updateScoreUI();
 updateVisualFx(performance.now(), { force: true });
 showStartScreen();
 ui.appVersion.textContent = `v${APP_VERSION}`;
+updateTapZoneDynamics();
 initializeFxEngine();

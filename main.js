@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.28';
+const APP_VERSION = window.APP_VERSION;
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -315,8 +315,7 @@ async function initializeFxEngine() {
   }
 
   try {
-    const version = encodeURIComponent(APP_VERSION);
-    const fxModule = await import(`./fx-webgl.js?v=${version}`);
+    const fxModule = await import(window.withAppVersion('./fx-webgl.js'));
     const engine = fxModule?.createWebglFx?.({ canvas, safeMode: isSafeFxPreferred() }) ?? null;
 
     if (!engine) {

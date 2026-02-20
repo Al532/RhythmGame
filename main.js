@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '48';
+const RUNTIME_ASSET_VERSION = '49';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -648,7 +648,7 @@ function applyPersistedSettings() {
 
   try {
     const storedFxPreset = window.localStorage.getItem(STORAGE_KEYS.fxPreset);
-    if (storedFxPreset === 'minimal' || storedFxPreset === 'neon' || storedFxPreset === 'insane') {
+    if (storedFxPreset === 'minimal' || storedFxPreset === 'soft' || storedFxPreset === 'neon' || storedFxPreset === 'arcade' || storedFxPreset === 'pulse' || storedFxPreset === 'insane') {
       state.fxPreset = storedFxPreset;
     }
   } catch (_error) {
@@ -1886,7 +1886,7 @@ ui.maxScore.addEventListener('input', (e) => {
 
 ui.fxPreset.addEventListener('change', (e) => {
   const nextPreset = e.target.value;
-  if (nextPreset !== 'minimal' && nextPreset !== 'neon' && nextPreset !== 'insane') return;
+  if (nextPreset !== 'minimal' && nextPreset !== 'soft' && nextPreset !== 'neon' && nextPreset !== 'arcade' && nextPreset !== 'pulse' && nextPreset !== 'insane') return;
   state.fxPreset = nextPreset;
   applyWebglFxFlags();
   try {

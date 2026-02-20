@@ -177,7 +177,10 @@ void main() {
 
 const FX_PRESETS = {
   minimal: { bloom: 0.14, chromatic: 0.16, noise: 0.008 },
+  soft: { bloom: 0.2, chromatic: 0.22, noise: 0.01 },
   neon: { bloom: 0.3, chromatic: 0.35, noise: 0.012 },
+  arcade: { bloom: 0.38, chromatic: 0.48, noise: 0.016 },
+  pulse: { bloom: 0.44, chromatic: 0.56, noise: 0.019 },
   insane: { bloom: 0.52, chromatic: 0.75, noise: 0.024 }
 };
 

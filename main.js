@@ -1,6 +1,6 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
-const REPS_PER_PATTERN = 2;
+const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
@@ -52,7 +52,8 @@ const DRUM_TUNING = {
 };
 
 const START_COUNTIN_BEATS = 4;
-const PATTERNS_PER_LEVEL = 2;
+const PATTERNS_PER_LEVEL = 4;
+const MIN_SCORE_RATIO_TO_LEVEL_UP = 0.5;
 const SCORE_REGEN_INTERVAL_MS = 50;
 
 const PHASE = {
@@ -245,6 +246,8 @@ const state = {
 
   patternNumber: 1,
   pattern: [],
+  levelPatternPool: [],
+  levelPatternIndex: 0,
   repetition: 1,
   phase: PHASE.LISTEN,
   liveRepetition: 1,
@@ -418,6 +421,27 @@ function generatePattern() {
   }
   p[15] = 0;
   return p;
+}
+
+function initializeLevelPatternSequence() {
+  const firstPattern = generatePattern();
+  const secondPattern = generatePattern();
+  state.levelPatternPool = [firstPattern, secondPattern, firstPattern, secondPattern];
+  state.levelPatternIndex = 0;
+  state.pattern = [...state.levelPatternPool[state.levelPatternIndex]];
+}
+
+function moveToNextPatternInLevel() {
+  state.levelPatternIndex += 1;
+  if (state.levelPatternIndex >= state.levelPatternPool.length) {
+    return false;
+  }
+  state.pattern = [...state.levelPatternPool[state.levelPatternIndex]];
+  return true;
+}
+
+function shouldRepeatCurrentLevel() {
+  return state.score < (state.maxScore * MIN_SCORE_RATIO_TO_LEVEL_UP);
 }
 
 function getSubdivDur(bpm = state.bpm) {
@@ -1103,19 +1127,29 @@ function scheduleLoop() {
 
         if (state.completedPatternsInLevel >= PATTERNS_PER_LEVEL) {
           state.completedPatternsInLevel = 0;
-          if (state.level >= LEVEL_MAX) {
+          const repeatCurrentLevel = shouldRepeatCurrentLevel();
+          if (state.level >= LEVEL_MAX && !repeatCurrentLevel) {
             stopEngine();
             showResultScreen('Victory!', 'You finished level 10.');
             return;
           }
           const previousLevel = state.level;
-          state.level += 1;
+          if (!repeatCurrentLevel && state.level < LEVEL_MAX) {
+            state.level += 1;
+          }
           syncInterpolatedSettings({ updateBpmDisplay: false });
           state.pendingBpmDisplayUpdate = true;
-          appendLog(`[LEVEL UP] ${previousLevel} -> ${state.level} | nextBpm=${state.bpm}`);
+          if (repeatCurrentLevel) {
+            appendLog(`[LEVEL retry] ${state.level} | score=${state.score.toFixed(2)}/${state.maxScore}`);
+          } else {
+            appendLog(`[LEVEL UP] ${previousLevel} -> ${state.level} | nextBpm=${state.bpm}`);
+          }
+          initializeLevelPatternSequence();
+          appendLog(`[NEW pattern] lvl=${state.level} pattern=${formatPattern(state.pattern)}`);
+          continue;
         }
 
-        state.pattern = generatePattern();
+        moveToNextPatternInLevel();
         appendLog(`[NEW pattern] lvl=${state.level} pattern=${formatPattern(state.pattern)}`);
       }
     }
@@ -1136,7 +1170,7 @@ function startEngine() {
   state.liveBpm = state.bpm;
   state.patternNumber = 1;
   state.completedPatternsInLevel = 0;
-  state.pattern = generatePattern();
+  initializeLevelPatternSequence();
   state.repetition = 1;
   state.phase = PHASE.LISTEN;
   state.liveRepetition = 1;

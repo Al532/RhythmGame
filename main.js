@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '36';
+const RUNTIME_ASSET_VERSION = '37';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -73,7 +73,8 @@ const DEFAULT_VISUAL_FX_FLAGS = Object.freeze({
   noise: true,
   tapRing: true,
   hueShift: true,
-  webglPost: true
+  webglPost: true,
+  webglEngine: true
 });
 
 
@@ -96,7 +97,8 @@ const STORAGE_KEYS = {
   fxToggleNoise: 'rhythmTrainer.fxToggleNoise',
   fxToggleTapRing: 'rhythmTrainer.fxToggleTapRing',
   fxToggleHueShift: 'rhythmTrainer.fxToggleHueShift',
-  fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost'
+  fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost',
+  fxToggleWebglEngine: 'rhythmTrainer.fxToggleWebglEngine'
 };
 
 function getInterpolationFactor(level = LEVEL_DEFAULT) {
@@ -197,6 +199,7 @@ const ui = {
   fxToggleNoise: document.getElementById('fxToggleNoise'),
   fxToggleTapRing: document.getElementById('fxToggleTapRing'),
   fxToggleHueShift: document.getElementById('fxToggleHueShift'),
+  fxToggleWebglEngine: document.getElementById('fxToggleWebglEngine'),
   fxToggleWebglPost: document.getElementById('fxToggleWebglPost'),
   endpointInputs: [
     { input: document.getElementById('weightFirst2Level1'), value: document.getElementById('weightFirst2Level1Value'), key: 'first', level: 1, index: 0 },
@@ -351,52 +354,73 @@ function applyCssFxFlags() {
 }
 
 function applyWebglFxFlags() {
-  if (!state.fxEngine) return;
+  if (!state.fxWebglEnabled || !state.fxEngine) return;
   state.fxEngine.setPreset(state.fxPreset);
   state.fxEngine.setPostIntensity(state.visualFxFlags.webglPost ? state.fxIntensity : 0);
   state.fxEngine.setNoiseEnabled(state.visualFxFlags.noise);
 }
 
-function reapplyVisualFxFlags() {
+async function destroyFxEngine() {
+  if (!state.fxEngine) return;
+  try {
+    state.fxEngine.destroy();
+  } catch (_error) {
+    // Ignore teardown errors
+  }
+  state.fxEngine = null;
+}
+
+async function initializeWebglFxEngine() {
+  const canvas = ui.fxCanvas;
+  if (!canvas) return false;
+
+  try {
+    const fxModule = await import(`./fx-webgl.js?v=${RUNTIME_ASSET_VERSION}`);
+    const engine = fxModule?.createWebglFx?.({ canvas, safeMode: isSafeFxPreferred() }) ?? null;
+    if (!engine) return false;
+
+    state.fxEngine = engine;
+    state.fxEngine.setSafeMode(isSafeFxPreferred());
+    state.fxEngine.setLimiter(0.92);
+    updateFxEngineState();
+    state.fxEngine.resize(window.innerWidth, window.innerHeight);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function ensureFxEngineMode() {
+  if (!state.visualFxFlags.webglEngine) {
+    await destroyFxEngine();
+    state.fxEngine = createCssOnlyFxFallback();
+    applyFxMode({ webglEnabled: false });
+    return;
+  }
+
+  const hasUsableWebglEngine = state.fxWebglEnabled && state.fxEngine;
+  if (hasUsableWebglEngine) return;
+
+  await destroyFxEngine();
+  const webglReady = await initializeWebglFxEngine();
+  if (webglReady) {
+    applyFxMode({ webglEnabled: true });
+    return;
+  }
+
+  state.fxEngine = createCssOnlyFxFallback();
+  applyFxMode({ webglEnabled: false });
+}
+
+async function reapplyVisualFxFlags() {
+  await ensureFxEngineMode();
   applyCssFxFlags();
   applyWebglFxFlags();
   updateVisualFx(performance.now(), { force: true });
 }
 
 async function initializeFxEngine() {
-  const fallback = createCssOnlyFxFallback();
-  const canvas = ui.fxCanvas;
-  if (!canvas) {
-    state.fxEngine = fallback;
-    applyFxMode({ webglEnabled: false });
-    applyCssFxFlags();
-    return;
-  }
-
-  try {
-    const fxModule = await import(`./fx-webgl.js?v=${RUNTIME_ASSET_VERSION}`);
-    const engine = fxModule?.createWebglFx?.({ canvas, safeMode: isSafeFxPreferred() }) ?? null;
-
-    if (!engine) {
-      state.fxEngine = fallback;
-      applyFxMode({ webglEnabled: false });
-      applyCssFxFlags();
-      return;
-    }
-
-    state.fxEngine = engine;
-    applyFxMode({ webglEnabled: true });
-    state.fxEngine.setSafeMode(isSafeFxPreferred());
-    applyWebglFxFlags();
-    state.fxEngine.setLimiter(0.92);
-    updateFxEngineState();
-    state.fxEngine.resize(window.innerWidth, window.innerHeight);
-    applyCssFxFlags();
-  } catch (_error) {
-    state.fxEngine = fallback;
-    applyFxMode({ webglEnabled: false });
-    applyCssFxFlags();
-  }
+  await reapplyVisualFxFlags();
 }
 
 function weightedChoice(values, weights) {
@@ -513,6 +537,7 @@ function setFxToggleInputsFromState() {
   ui.fxToggleNoise.checked = state.visualFxFlags.noise;
   ui.fxToggleTapRing.checked = state.visualFxFlags.tapRing;
   ui.fxToggleHueShift.checked = state.visualFxFlags.hueShift;
+  ui.fxToggleWebglEngine.checked = state.visualFxFlags.webglEngine;
   ui.fxToggleWebglPost.checked = state.visualFxFlags.webglPost;
 }
 
@@ -597,6 +622,7 @@ function applyPersistedSettings() {
   state.visualFxFlags.noise = readStoredFxFlag(STORAGE_KEYS.fxToggleNoise);
   state.visualFxFlags.tapRing = readStoredFxFlag(STORAGE_KEYS.fxToggleTapRing);
   state.visualFxFlags.hueShift = readStoredFxFlag(STORAGE_KEYS.fxToggleHueShift);
+  state.visualFxFlags.webglEngine = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglEngine);
   state.visualFxFlags.webglPost = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglPost);
 
   syncInterpolatedSettings();
@@ -1551,6 +1577,7 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleNoise);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleTapRing);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleHueShift);
+    window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglEngine);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglPost);
   } catch (_error) {
     // Ignore storage errors
@@ -1772,6 +1799,7 @@ const FX_TOGGLE_CONFIG = [
   { input: ui.fxToggleNoise, flag: 'noise', storageKey: STORAGE_KEYS.fxToggleNoise },
   { input: ui.fxToggleTapRing, flag: 'tapRing', storageKey: STORAGE_KEYS.fxToggleTapRing },
   { input: ui.fxToggleHueShift, flag: 'hueShift', storageKey: STORAGE_KEYS.fxToggleHueShift },
+  { input: ui.fxToggleWebglEngine, flag: 'webglEngine', storageKey: STORAGE_KEYS.fxToggleWebglEngine },
   { input: ui.fxToggleWebglPost, flag: 'webglPost', storageKey: STORAGE_KEYS.fxToggleWebglPost }
 ];
 

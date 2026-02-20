@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '49';
+const RUNTIME_ASSET_VERSION = '50';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -289,6 +289,7 @@ const state = {
   scoreStepTimer: null,
   scoreRegenTimer: null,
   patternFlashTimer: null,
+  tapLabelPulseTimer: null,
   listenSaturationStartTimer: null,
   listenSaturationEndTimer: null,
   visualPhase: 0,
@@ -1017,6 +1018,21 @@ function triggerPatternHitFlash() {
   }, 150);
 }
 
+function triggerTapLabelPulse() {
+  if (!ui.tapZone || state.livePhase !== PHASE.TAP) return;
+  ui.tapZone.classList.remove('tap-hit-pulse');
+  // Force reflow so rapid successive hits can retrigger the pulse.
+  void ui.tapZone.offsetWidth;
+  ui.tapZone.classList.add('tap-hit-pulse');
+  if (state.tapLabelPulseTimer !== null) {
+    clearTimeout(state.tapLabelPulseTimer);
+  }
+  state.tapLabelPulseTimer = setTimeout(() => {
+    ui.tapZone.classList.remove('tap-hit-pulse');
+    state.tapLabelPulseTimer = null;
+  }, 180);
+}
+
 function scheduleListenSaturationRelease(measureStart, bpmForMeasure) {
   clearListenSaturationTimers();
 
@@ -1064,7 +1080,7 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
 
     if (phase === PHASE.TAP) {
       clearListenSaturationTimers();
-      ui.tapZone.classList.remove('listen-muted', 'listen-release');
+      ui.tapZone.classList.remove('listen-muted', 'listen-release', 'tap-hit-pulse');
       ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
       stopScoreRecoveryAnimation();
       prepareTapPhase(measureStart, patternForMeasure, bpmForMeasure);
@@ -1091,6 +1107,8 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
         triggerPatternHitFlash();
         if (state.livePhase === PHASE.LISTEN) {
           triggerTapZoneFeedback({ vibrate: true });
+        } else if (state.livePhase === PHASE.TAP) {
+          triggerTapLabelPulse();
         }
       }, feedbackDelayMs);
     }
@@ -1333,11 +1351,15 @@ function stopEngine() {
   state.fxEngine?.setPhase(FX_PHASE.LISTEN);
   state.liveRepetition = 1;
   reapplyVisualFxFlags();
-  ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release');
+  ui.tapZone.classList.remove('active', 'listen-muted', 'listen-release', 'tap-hit-pulse');
   ui.tapZone.classList.remove('pattern-hit-flash');
   if (state.patternFlashTimer !== null) {
     clearTimeout(state.patternFlashTimer);
     state.patternFlashTimer = null;
+  }
+  if (state.tapLabelPulseTimer !== null) {
+    clearTimeout(state.tapLabelPulseTimer);
+    state.tapLabelPulseTimer = null;
   }
   ui.tapZone.style.setProperty('--tap-sat-transition-ms', '0ms');
   updateStaticUI();

@@ -1,7 +1,7 @@
 // ===== Tunable constants =====
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 2;
-const APP_VERSION = window.APP_VERSION || '1.0.23';
+const APP_VERSION = window.APP_VERSION || '1.0.24';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -191,6 +191,7 @@ const state = {
   audioCtx: null,
   noiseBuffer: null,
   masterGain: null,
+  activeVoices: new Set(),
   isRunning: false,
   screen: 'start',
   isCalibrating: false,
@@ -421,6 +422,30 @@ function setAudioMuted(isMuted) {
   state.masterGain.gain.setValueAtTime(isMuted ? 0.0001 : 1, now);
 }
 
+function trackVoice(node) {
+  if (!node || typeof node.stop !== 'function') return node;
+  state.activeVoices.add(node);
+  if ('onended' in node) {
+    node.onended = () => {
+      state.activeVoices.delete(node);
+    };
+  }
+  return node;
+}
+
+function cancelScheduledVoices() {
+  if (!state.audioCtx) return;
+  const hardStopAt = state.audioCtx.currentTime + 0.09;
+  state.activeVoices.forEach((voice) => {
+    try {
+      voice.stop(hardStopAt);
+    } catch (_error) {
+      // Ignore nodes already stopped.
+    }
+  });
+  state.activeVoices.clear();
+}
+
 function createNoiseBuffer(ctx, seconds) {
   const sampleCount = Math.floor(ctx.sampleRate * seconds);
   const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
@@ -433,7 +458,7 @@ function createNoiseBuffer(ctx, seconds) {
 
 function playSnare(time) {
   const ctx = state.audioCtx;
-  const source = ctx.createBufferSource();
+  const source = trackVoice(ctx.createBufferSource());
   source.buffer = state.noiseBuffer;
 
   const bp = ctx.createBiquadFilter();
@@ -452,7 +477,7 @@ function playSnare(time) {
 
 function playKick(time) {
   const ctx = state.audioCtx;
-  const osc = ctx.createOscillator();
+  const osc = trackVoice(ctx.createOscillator());
   osc.type = 'sine';
   osc.frequency.setValueAtTime(DRUM_TUNING.kick.startFreq, time);
   osc.frequency.exponentialRampToValueAtTime(DRUM_TUNING.kick.endFreq, time + DRUM_TUNING.kick.decay);
@@ -468,7 +493,7 @@ function playKick(time) {
 
 function playHiHat(time) {
   const ctx = state.audioCtx;
-  const src = ctx.createBufferSource();
+  const src = trackVoice(ctx.createBufferSource());
   src.buffer = state.noiseBuffer;
 
   const hp = ctx.createBiquadFilter();
@@ -486,7 +511,7 @@ function playHiHat(time) {
 
 function playCymbalCrescendo(startTime, endTime) {
   const ctx = state.audioCtx;
-  const src = ctx.createBufferSource();
+  const src = trackVoice(ctx.createBufferSource());
   src.buffer = state.noiseBuffer;
 
   const hp = ctx.createBiquadFilter();
@@ -949,7 +974,7 @@ function startEngine() {
 function stopEngine() {
   state.isRunning = false;
   state.isIntroduction = false;
-  setAudioMuted(true);
+  cancelScheduledVoices();
   if (state.scheduleTimer) {
     clearInterval(state.scheduleTimer);
     state.scheduleTimer = null;
@@ -981,7 +1006,7 @@ function stopCalibration({ clearMessage = false } = {}) {
   state.calibrationTargets = [];
   state.calibrationMatched = new Set();
   state.calibrationDelays = [];
-  setAudioMuted(true);
+  cancelScheduledVoices();
   if (clearMessage) {
     ui.calibrationResult.textContent = 'Calibration arrêtée.';
   }
@@ -1111,7 +1136,7 @@ function startCalibration() {
     state.isCalibrating = false;
     state.livePhase = PHASE.LISTEN;
     applyCalibrationResult();
-    setAudioMuted(true);
+    cancelScheduledVoices();
     updateStaticUI();
     showStartScreen();
   }, calibrationDurationMs);

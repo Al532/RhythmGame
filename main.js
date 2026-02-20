@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '44';
+const RUNTIME_ASSET_VERSION = '46';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -206,6 +206,7 @@ const ui = {
   calibrationResult: document.getElementById('calibrationResult'),
   testLog: document.getElementById('testLog'),
   tapZone: document.getElementById('tapZone'),
+  tapZoneText: document.getElementById('tapZoneText'),
   fxCanvas: document.getElementById('fxCanvas'),
   fxPreset: document.getElementById('fxPreset'),
   fxIntensity: document.getElementById('fxIntensity'),
@@ -1404,17 +1405,21 @@ function startVisualFxLoop() {
 }
 
 function getTapZoneLabel() {
-  if (!state.isRunning) return '';
+  if (!state.isRunning) return 'READY?';
   if (state.isIntroduction) return 'READY?';
   if (state.livePhase === PHASE.LISTEN) return 'LISTEN...';
   if (state.livePhase === PHASE.TAP) return 'TAP!';
-  return '';
+  return 'READY?';
 }
 
 function updateStaticUI() {
   const isTapActive = (state.livePhase === PHASE.TAP || state.isCalibrating) && (state.isRunning || state.isCalibrating);
   ui.tapZone.classList.toggle('active', isTapActive);
-  ui.tapZone.setAttribute('aria-label', `Tap input zone ${getTapZoneLabel()}`.trim());
+  const tapZoneLabel = getTapZoneLabel();
+  ui.tapZone.setAttribute('aria-label', `Tap input zone ${tapZoneLabel}`.trim());
+  if (ui.tapZoneText) {
+    ui.tapZoneText.textContent = tapZoneLabel;
+  }
   ui.gameLevelValue.textContent = String(state.isRunning ? state.liveLevel : state.level);
   document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
 }

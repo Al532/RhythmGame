@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '50';
+const RUNTIME_ASSET_VERSION = '51';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -78,9 +78,6 @@ const HIT_CATEGORY = {
 };
 
 const DEFAULT_VISUAL_FX_FLAGS = Object.freeze({
-  ambientLayer: true,
-  noise: true,
-  tapRing: true,
   hueShift: true,
   webglPost: true,
   webglEngine: true,
@@ -104,9 +101,6 @@ const STORAGE_KEYS = {
   maxScore: 'rhythmTrainer.maxScore',
   fxPreset: 'rhythmTrainer.fxPreset',
   fxIntensity: 'rhythmTrainer.fxIntensity',
-  fxToggleAmbient: 'rhythmTrainer.fxToggleAmbient',
-  fxToggleNoise: 'rhythmTrainer.fxToggleNoise',
-  fxToggleTapRing: 'rhythmTrainer.fxToggleTapRing',
   fxToggleHueShift: 'rhythmTrainer.fxToggleHueShift',
   fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost',
   fxToggleWebglEngine: 'rhythmTrainer.fxToggleWebglEngine',
@@ -211,9 +205,6 @@ const ui = {
   fxPreset: document.getElementById('fxPreset'),
   fxIntensity: document.getElementById('fxIntensity'),
   fxIntensityValue: document.getElementById('fxIntensityValue'),
-  fxToggleAmbient: document.getElementById('fxToggleAmbient'),
-  fxToggleNoise: document.getElementById('fxToggleNoise'),
-  fxToggleTapRing: document.getElementById('fxToggleTapRing'),
   fxToggleHueShift: document.getElementById('fxToggleHueShift'),
   fxToggleBackground: document.getElementById('fxToggleBackground'),
   fxToggleWebglEngine: document.getElementById('fxToggleWebglEngine'),
@@ -368,12 +359,10 @@ function applyFxMode({ webglEnabled }) {
 }
 
 function shouldUseCssNoiseLayer() {
-  return state.visualFxFlags.noise && !state.fxWebglEnabled;
+  return !state.fxWebglEnabled;
 }
 
 function applyCssFxFlags() {
-  document.body.classList.toggle('fx-ambient-enabled', state.visualFxFlags.ambientLayer);
-  document.body.classList.toggle('fx-tap-ring-enabled', state.visualFxFlags.tapRing);
   document.body.classList.toggle('fx-hue-shift-enabled', state.visualFxFlags.hueShift);
   document.body.classList.toggle('fx-css-noise-enabled', shouldUseCssNoiseLayer());
 
@@ -384,7 +373,7 @@ function applyWebglFxFlags() {
   if (!state.fxWebglEnabled || !state.fxEngine) return;
   state.fxEngine.setPreset(state.fxPreset);
   state.fxEngine.setPostIntensity(state.visualFxFlags.webglPost ? state.fxIntensity : 0);
-  state.fxEngine.setNoiseEnabled(state.visualFxFlags.noise);
+  state.fxEngine.setNoiseEnabled(true);
 }
 
 async function destroyFxEngine() {
@@ -570,9 +559,6 @@ function readStoredFxFlag(key) {
 }
 
 function setFxToggleInputsFromState() {
-  ui.fxToggleAmbient.checked = state.visualFxFlags.ambientLayer;
-  ui.fxToggleNoise.checked = state.visualFxFlags.noise;
-  ui.fxToggleTapRing.checked = state.visualFxFlags.tapRing;
   ui.fxToggleHueShift.checked = state.visualFxFlags.hueShift;
   ui.fxToggleWebglEngine.checked = state.visualFxFlags.webglEngine;
   ui.fxToggleWebglPost.checked = state.visualFxFlags.webglPost;
@@ -661,9 +647,6 @@ function applyPersistedSettings() {
     state.fxIntensity = clamp(Number(storedFxIntensity.toFixed(2)), 0, 1.2);
   }
 
-  state.visualFxFlags.ambientLayer = readStoredFxFlag(STORAGE_KEYS.fxToggleAmbient);
-  state.visualFxFlags.noise = readStoredFxFlag(STORAGE_KEYS.fxToggleNoise);
-  state.visualFxFlags.tapRing = readStoredFxFlag(STORAGE_KEYS.fxToggleTapRing);
   state.visualFxFlags.hueShift = readStoredFxFlag(STORAGE_KEYS.fxToggleHueShift);
   state.visualFxFlags.webglEngine = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglEngine);
   state.visualFxFlags.webglPost = readStoredFxFlag(STORAGE_KEYS.fxToggleWebglPost);
@@ -1030,7 +1013,7 @@ function triggerTapLabelPulse() {
   state.tapLabelPulseTimer = setTimeout(() => {
     ui.tapZone.classList.remove('tap-hit-pulse');
     state.tapLabelPulseTimer = null;
-  }, 180);
+  }, 260);
 }
 
 function scheduleListenSaturationRelease(measureStart, bpmForMeasure) {
@@ -1108,7 +1091,11 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
         if (state.livePhase === PHASE.LISTEN) {
           triggerTapZoneFeedback({ vibrate: true });
         } else if (state.livePhase === PHASE.TAP) {
-          triggerTapLabelPulse();
+          const anticipationMs = Math.max(40, Math.round((subdivDur * 1000) * 0.35));
+          setTimeout(() => {
+            if (!state.isRunning || state.livePhase !== PHASE.TAP) return;
+            triggerTapLabelPulse();
+          }, Math.max(0, feedbackDelayMs - anticipationMs));
         }
       }, feedbackDelayMs);
     }
@@ -1399,20 +1386,10 @@ function updateVisualLayerVariables({ amplitude, inTapPhase, phasePulse, bpmForV
   const levelFactor = clamp((state.liveLevel - 1) / 9, 0, 1);
   const tapBoost = inTapPhase ? 1 : 0;
 
-  const ambientOpacity = clamp(0.28 + (0.16 * levelFactor) + (0.18 * bpmFactor) + (0.22 * tapBoost) + (phasePulse * 0.04), 0.2, 0.88) * (reducedFx ? 0.68 : 1);
-  const ambientScale = clamp(0.96 + (0.08 * levelFactor) + (0.07 * bpmFactor) + (0.05 * tapBoost) + (phasePulse * 0.015), 0.92, 1.2);
   const noiseOpacity = clamp(0.014 + (0.02 * bpmFactor) + (0.015 * tapBoost) + (0.008 * levelFactor), 0.01, 0.08) * (reducedFx ? 0.72 : 1);
-  const tapRingOpacity = inTapPhase
-    ? clamp(0.1 + (0.25 * bpmFactor) + (0.18 * levelFactor) + (Math.max(0, phasePulse) * 0.12), 0.08, 0.78)
-    : 0;
-  const tapRingScale = clamp(0.9 + (0.08 * bpmFactor) + (0.06 * levelFactor) + (Math.max(0, phasePulse) * 0.03), 0.88, 1.08);
 
   const rootStyle = document.documentElement.style;
-  rootStyle.setProperty('--ambient-layer-opacity', state.visualFxFlags.ambientLayer ? ambientOpacity.toFixed(3) : '0');
-  rootStyle.setProperty('--ambient-layer-scale', state.visualFxFlags.ambientLayer ? ambientScale.toFixed(3) : '1');
   rootStyle.setProperty('--noise-opacity', shouldUseCssNoiseLayer() ? noiseOpacity.toFixed(3) : '0');
-  rootStyle.setProperty('--tap-ring-opacity', state.visualFxFlags.tapRing ? tapRingOpacity.toFixed(3) : '0');
-  rootStyle.setProperty('--tap-ring-scale', state.visualFxFlags.tapRing ? tapRingScale.toFixed(3) : '1');
 }
 
 function updateVisualFx(timestamp, { force = false } = {}) {
@@ -1476,7 +1453,9 @@ function updateStaticUI() {
     ui.tapZoneText.textContent = tapZoneLabel;
   }
   ui.gameLevelValue.textContent = String(state.isRunning ? state.liveLevel : state.level);
-  document.body.classList.toggle('tap-phase', state.livePhase === PHASE.TAP && state.isRunning);
+  const isTapPhase = state.livePhase === PHASE.TAP && state.isRunning;
+  document.body.classList.toggle('tap-phase', isTapPhase);
+  ui.tapZone.classList.toggle('tap-phase-active', isTapPhase);
   syncBpmCssVariables(state.isRunning ? state.liveBpm : state.bpm);
 }
 
@@ -1691,9 +1670,6 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.maxScore);
     window.localStorage.removeItem(STORAGE_KEYS.fxPreset);
     window.localStorage.removeItem(STORAGE_KEYS.fxIntensity);
-    window.localStorage.removeItem(STORAGE_KEYS.fxToggleAmbient);
-    window.localStorage.removeItem(STORAGE_KEYS.fxToggleNoise);
-    window.localStorage.removeItem(STORAGE_KEYS.fxToggleTapRing);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleHueShift);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglEngine);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglPost);
@@ -1928,9 +1904,6 @@ ui.fxIntensity.addEventListener('input', (e) => {
 
 
 const FX_TOGGLE_CONFIG = [
-  { input: ui.fxToggleAmbient, flag: 'ambientLayer', storageKey: STORAGE_KEYS.fxToggleAmbient },
-  { input: ui.fxToggleNoise, flag: 'noise', storageKey: STORAGE_KEYS.fxToggleNoise },
-  { input: ui.fxToggleTapRing, flag: 'tapRing', storageKey: STORAGE_KEYS.fxToggleTapRing },
   { input: ui.fxToggleHueShift, flag: 'hueShift', storageKey: STORAGE_KEYS.fxToggleHueShift },
   { input: ui.fxToggleBackground, flag: 'backgroundGradient', storageKey: STORAGE_KEYS.fxToggleBackground },
   { input: ui.fxToggleWebglEngine, flag: 'webglEngine', storageKey: STORAGE_KEYS.fxToggleWebglEngine },

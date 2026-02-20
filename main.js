@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '62';
+const RUNTIME_ASSET_VERSION = '63';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -59,6 +59,14 @@ const DRUM_GAIN = {
   hihat: 0.22,
   cymbal: 0.13
 };
+
+const EXPERIMENTAL_MELODY_DEFAULTS = Object.freeze({
+  minMidi: 56,
+  maxMidi: 73,
+  primaryPitchClasses: new Set([1, 4, 8]),
+  secondaryPitchClasses: new Set([3, 6, 9, 11]),
+  forbiddenPitchClasses: new Set([5, 10])
+});
 
 const DRUM_TUNING = {
   snare: { decay: 0.1, bpFreq: 2800, bpQ: 1.7 },
@@ -511,8 +519,40 @@ function weightedChoice(values, weights) {
 function clonePattern(pattern) {
   return {
     grid: [...pattern.grid],
-    tripletBeatStarts: [...pattern.tripletBeatStarts]
+    tripletBeatStarts: [...pattern.tripletBeatStarts],
+    midiSequence: Array.isArray(pattern.midiSequence) ? [...pattern.midiSequence] : []
   };
+}
+
+function getPatternNoteCount(pattern) {
+  const tripletStarts = new Set(pattern.tripletBeatStarts);
+  return pattern.grid.reduce((count, value, idx) => {
+    if (value !== 1) return count;
+    return count + (tripletStarts.has(idx) ? 3 : 1);
+  }, 0);
+}
+
+function assignExperimentalMelodyToPattern(pattern) {
+  const noteCount = getPatternNoteCount(pattern);
+  if (noteCount <= 0) {
+    return { ...pattern, midiSequence: [] };
+  }
+
+  const generator = window.NoteSequenceGenerator;
+  if (!generator || typeof generator.generateMidiSequence !== 'function') {
+    throw new Error('NoteSequenceGenerator is unavailable.');
+  }
+
+  const midiSequence = generator.generateMidiSequence({
+    minMidi: EXPERIMENTAL_MELODY_DEFAULTS.minMidi,
+    maxMidi: EXPERIMENTAL_MELODY_DEFAULTS.maxMidi,
+    noteCount,
+    primaryPitchClasses: EXPERIMENTAL_MELODY_DEFAULTS.primaryPitchClasses,
+    secondaryPitchClasses: EXPERIMENTAL_MELODY_DEFAULTS.secondaryPitchClasses,
+    forbiddenPitchClasses: EXPERIMENTAL_MELODY_DEFAULTS.forbiddenPitchClasses
+  });
+
+  return { ...pattern, midiSequence };
 }
 
 function getTripletLabelFromStartIndex(startIdx) {
@@ -558,8 +598,14 @@ function generatePattern() {
 }
 
 function initializeLevelPatternSequence() {
-  const firstPattern = generatePattern();
-  const secondPattern = generatePattern();
+  let firstPattern = generatePattern();
+  let secondPattern = generatePattern();
+
+  if (state.isMusicMode) {
+    firstPattern = assignExperimentalMelodyToPattern(firstPattern);
+    secondPattern = assignExperimentalMelodyToPattern(secondPattern);
+  }
+
   state.levelPatternPool = [firstPattern, secondPattern, firstPattern, secondPattern].map(clonePattern);
   state.levelPatternIndex = 0;
   state.pattern = clonePattern(state.levelPatternPool[state.levelPatternIndex]);
@@ -928,6 +974,31 @@ function playSnare(time) {
   source.connect(bp).connect(gain).connect(getAudioOutputNode());
   source.start(time);
   source.stop(time + DRUM_TUNING.snare.decay + 0.02);
+}
+
+function midiToFrequency(midi) {
+  return 440 * (2 ** ((midi - 69) / 12));
+}
+
+function playExperimentalSquareNote(time, midi, bpmForMeasure) {
+  const ctx = state.audioCtx;
+  const osc = trackVoice(ctx.createOscillator());
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(midiToFrequency(midi), time);
+
+  const gain = ctx.createGain();
+  const noteDuration = getSubdivDur(bpmForMeasure);
+  const releaseStart = time + Math.max(0.01, noteDuration * 0.85);
+  const stopTime = time + noteDuration;
+
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(0.22, time + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, releaseStart);
+  gain.gain.exponentialRampToValueAtTime(0.0001, stopTime + 0.01);
+
+  osc.connect(gain).connect(getAudioOutputNode());
+  osc.start(time);
+  osc.stop(stopTime + 0.02);
 }
 
 function playKick(time) {
@@ -1348,25 +1419,25 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
     }
   }, Math.max(0, (phaseStartTime - state.audioCtx.currentTime) * 1000));
 
-  const tripletSet = new Set(patternForMeasure.tripletBeatStarts);
-
   for (let idx = 0; idx < PATTERN_LENGTH; idx += 1) {
     const eventTime = measureStart + (idx * subdivDur);
-
     if (idx % 4 === 0) playKick(eventTime);
+  }
 
-    if (patternForMeasure.grid[idx] !== 1) {
-      continue;
+  const noteEvents = getPatternNoteEvents(patternForMeasure, bpmForMeasure, measureStart);
+  noteEvents.forEach((noteEvent, eventIndex) => {
+    if (state.isMusicMode) {
+      const midi = patternForMeasure.midiSequence?.[eventIndex];
+      if (Number.isFinite(midi)) {
+        playExperimentalSquareNote(noteEvent.targetTime, midi, bpmForMeasure);
+      } else {
+        playSnare(noteEvent.targetTime);
+      }
+    } else {
+      playSnare(noteEvent.targetTime);
     }
 
-    const snareTimes = tripletSet.has(idx)
-      ? [eventTime, eventTime + ((4 * subdivDur) / 3), eventTime + ((8 * subdivDur) / 3)]
-      : [eventTime];
-
-    snareTimes.forEach((snareTime) => {
-      playSnare(snareTime);
-
-      const feedbackDelayMs = Math.max(0, ((snareTime - state.audioCtx.currentTime) * 1000) + state.latencyOffsetMs);
+      const feedbackDelayMs = Math.max(0, ((noteEvent.targetTime - state.audioCtx.currentTime) * 1000) + state.latencyOffsetMs);
       setTimeout(() => {
         if (!state.isRunning) return;
         triggerPatternHitFlash();
@@ -1376,10 +1447,9 @@ function scheduleMeasure(measureStart, phase, repetition, patternForMeasure, lev
       }, feedbackDelayMs);
 
       if (phase === PHASE.TAP) {
-        scheduleTapLabelPulseForPatternHit(snareTime);
+        scheduleTapLabelPulseForPatternHit(noteEvent.targetTime);
       }
     });
-  }
 
   if (phase === PHASE.LISTEN) {
     playCymbalCrescendo(measureStart + (14 * subdivDur), measureStart + (16 * subdivDur));
@@ -1566,7 +1636,15 @@ function startEngine({ musicMode = false } = {}) {
   state.liveBpm = state.bpm;
   state.patternNumber = 1;
   state.completedPatternsInLevel = 0;
-  initializeLevelPatternSequence();
+  try {
+    initializeLevelPatternSequence();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    appendLog(`[ERR melody] ${message}`);
+    stopEngine();
+    showResultScreen('Generation error', message);
+    return;
+  }
   state.repetition = 1;
   state.phase = PHASE.LISTEN;
   state.liveRepetition = 1;

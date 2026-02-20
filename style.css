@@ -99,7 +99,7 @@ body:not(.fx-ambient-enabled)::before {
   opacity: 0;
 }
 
-body:not(.fx-tap-ring-enabled) .tap-zone::after {
+body:not(.fx-tap-ring-enabled) .game-screen::after {
   opacity: 0;
 }
 

@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '64';
+const RUNTIME_ASSET_VERSION = '65';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -126,6 +126,7 @@ const STORAGE_KEYS = {
   perfectWindowMs: 'rhythmTrainer.perfectWindowMs',
   scoreRecoveryPerSecond: 'rhythmTrainer.scoreRecoveryPerSecond',
   maxScore: 'rhythmTrainer.maxScore',
+  infiniteMode: 'rhythmTrainer.infiniteMode',
   fxPreset: 'rhythmTrainer.fxPreset',
   fxIntensity: 'rhythmTrainer.fxIntensity',
   fxToggleWebglPost: 'rhythmTrainer.fxToggleWebglPost',
@@ -221,6 +222,7 @@ const ui = {
   scoreRecoveryPerSecond: document.getElementById('scoreRecoveryPerSecond'),
   scoreRecoveryPerSecondValue: document.getElementById('scoreRecoveryPerSecondValue'),
   maxScore: document.getElementById('maxScore'),
+  infiniteMode: document.getElementById('infiniteMode'),
   clearCache: document.getElementById('clearCache'),
   calibration: document.getElementById('calibration'),
   appVersion: document.getElementById('appVersion'),
@@ -298,6 +300,7 @@ const state = {
   hitWindowMs: HIT_WINDOW_DEFAULT_MS,
   perfectWindowMs: PERFECT_WINDOW_DEFAULT_MS,
   scoreRecoveryPerSecond: SCORE_RECOVERY_PER_SECOND_DEFAULT,
+  infiniteMode: false,
 
   firstHitWeightsLevel1: [...FIRST_HIT_WEIGHTS_LEVEL1_DEFAULT],
   firstHitWeightsLevel10: [...FIRST_HIT_WEIGHTS_LEVEL10_DEFAULT],
@@ -373,7 +376,9 @@ const state = {
   musicAudio: null,
   musicGainNode: null,
   musicModeStopTimer: null,
-  experimentalSongPatternPool: []
+  experimentalSongPatternPool: [],
+  preloadedMusicReady: false,
+  preloadedMusicPromise: null
 };
 
 
@@ -831,6 +836,11 @@ function applyPersistedSettings() {
     state.maxScore = clamp(Math.round(storedMaxScore), MAX_SCORE_MIN, MAX_SCORE_MAX);
   }
 
+  const storedInfiniteMode = loadStoredNumber(STORAGE_KEYS.infiniteMode);
+  if (storedInfiniteMode !== null) {
+    state.infiniteMode = storedInfiniteMode === 1;
+  }
+
   try {
     const storedFxPreset = window.localStorage.getItem(STORAGE_KEYS.fxPreset);
     if (storedFxPreset === 'minimal' || storedFxPreset === 'soft' || storedFxPreset === 'neon' || storedFxPreset === 'arcade' || storedFxPreset === 'pulse' || storedFxPreset === 'insane') {
@@ -906,10 +916,32 @@ function stopMusicPlayback() {
   state.musicGainNode = null;
 }
 
-function startMusicPlayback(referenceStartTime) {
+async function preloadMusicAudio() {
+  if (state.preloadedMusicReady) return true;
+  if (state.preloadedMusicPromise) return state.preloadedMusicPromise;
+
+  state.preloadedMusicPromise = fetch(`music.mp3?v=${RUNTIME_ASSET_VERSION}`)
+    .then((response) => response.arrayBuffer())
+    .then((buffer) => state.audioCtx?.decodeAudioData(buffer.slice(0)) ?? null)
+    .then(() => {
+      state.preloadedMusicReady = true;
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      state.preloadedMusicPromise = null;
+    });
+
+  return state.preloadedMusicPromise;
+}
+
+async function startMusicPlayback(referenceStartTime) {
   if (!state.audioCtx) return;
 
   stopMusicPlayback();
+
+  await preloadMusicAudio();
+  if (!state.audioCtx || !state.isRunning || !state.isMusicMode) return;
 
   const musicAudio = new Audio(`music.mp3?v=${RUNTIME_ASSET_VERSION}`);
   musicAudio.preload = 'auto';
@@ -1162,7 +1194,7 @@ function setScore(nextScore, reason) {
   state.score = clampedScore;
   animateDisplayedScoreTo(state.score);
 
-  if (state.score <= 0) {
+  if (!state.infiniteMode && state.score <= 0) {
     stopEngine();
     const gameOverMessage = state.isMusicMode
       ? 'Mode Experimental perdu avant la fin.'
@@ -1172,7 +1204,7 @@ function setScore(nextScore, reason) {
 }
 
 function consumeScorePoint(reason) {
-  if (state.score <= 0) return;
+  if (!state.infiniteMode && state.score <= 0) return;
   setScore(state.score - 1, reason);
 }
 
@@ -1690,7 +1722,7 @@ function startEngine({ musicMode = false } = {}) {
   const countInStart = state.audioCtx.currentTime + 0.08;
   const beatDur = 60 / state.bpm;
   if (state.isMusicMode) {
-    startMusicPlayback(countInStart + (START_COUNTIN_BEATS * beatDur));
+    void startMusicPlayback(countInStart + (START_COUNTIN_BEATS * beatDur));
   }
   for (let beat = 0; beat < START_COUNTIN_BEATS; beat += 1) {
     playHiHat(countInStart + (beat * beatDur));
@@ -2103,6 +2135,7 @@ function clearLocalCache() {
     window.localStorage.removeItem(STORAGE_KEYS.perfectWindowMs);
     window.localStorage.removeItem(STORAGE_KEYS.scoreRecoveryPerSecond);
     window.localStorage.removeItem(STORAGE_KEYS.maxScore);
+    window.localStorage.removeItem(STORAGE_KEYS.infiniteMode);
     window.localStorage.removeItem(STORAGE_KEYS.fxPreset);
     window.localStorage.removeItem(STORAGE_KEYS.fxIntensity);
     window.localStorage.removeItem(STORAGE_KEYS.fxToggleWebglEngine);
@@ -2133,6 +2166,7 @@ function clearLocalCache() {
   state.perfectWindowMs = PERFECT_WINDOW_DEFAULT_MS;
   state.scoreRecoveryPerSecond = SCORE_RECOVERY_PER_SECOND_DEFAULT;
   state.maxScore = MAX_SCORE_DEFAULT;
+  state.infiniteMode = false;
   state.fxPreset = 'minimal';
   state.fxIntensity = 0.8;
   state.visualFxFlags = { ...DEFAULT_VISUAL_FX_FLAGS };
@@ -2161,6 +2195,7 @@ function clearLocalCache() {
   ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
   ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
   ui.maxScore.value = String(state.maxScore);
+  ui.infiniteMode.checked = state.infiniteMode;
   ui.fxPreset.value = state.fxPreset;
   ui.fxIntensity.value = String(state.fxIntensity);
   ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
@@ -2238,6 +2273,7 @@ ui.scoreRecoveryPerSecond.max = String(SCORE_RECOVERY_PER_SECOND_MAX);
 ui.scoreRecoveryPerSecond.value = String(state.scoreRecoveryPerSecond);
 ui.scoreRecoveryPerSecondValue.textContent = state.scoreRecoveryPerSecond.toFixed(1);
 ui.maxScore.value = String(state.maxScore);
+ui.infiniteMode.checked = state.infiniteMode;
 ui.fxPreset.value = state.fxPreset;
 ui.fxIntensity.value = String(state.fxIntensity);
 ui.fxIntensityValue.textContent = state.fxIntensity.toFixed(2);
@@ -2314,6 +2350,11 @@ ui.maxScore.addEventListener('input', (e) => {
   state.displayedScoreTarget = clamp(state.displayedScoreTarget, 0, state.maxScore);
   saveSetting(STORAGE_KEYS.maxScore, state.maxScore);
   updateScoreUI();
+});
+
+ui.infiniteMode.addEventListener('change', (e) => {
+  state.infiniteMode = e.target.checked;
+  saveSetting(STORAGE_KEYS.infiniteMode, state.infiniteMode ? 1 : 0);
 });
 
 ui.fxPreset.addEventListener('change', (e) => {
@@ -2413,8 +2454,9 @@ ui.startGame.addEventListener('click', () => {
   startEngine();
 });
 
-ui.startMusicGame.addEventListener('click', () => {
+ui.startMusicGame.addEventListener('click', async () => {
   unlockAudio();
+  await preloadMusicAudio();
   showGameScreen();
   startEngine({ musicMode: true });
 });
@@ -2446,7 +2488,10 @@ window.addEventListener('keydown', (e) => {
   recordTap();
 });
 
-window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('pointerdown', () => {
+  unlockAudio();
+  void preloadMusicAudio();
+}, { once: true });
 ui.tapZone.addEventListener('pointermove', trackTapZonePointerTilt, { passive: true });
 ui.tapZone.addEventListener('pointerleave', resetTapZonePointerTilt);
 ui.tapZone.addEventListener('click', requestDeviceMotionAccess, { once: true });

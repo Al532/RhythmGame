@@ -2,7 +2,7 @@
 const PATTERN_LENGTH = 16;
 const REPS_PER_PATTERN = 1;
 const APP_VERSION = window.APP_VERSION;
-const RUNTIME_ASSET_VERSION = '63';
+const RUNTIME_ASSET_VERSION = '64';
 const LEVEL_DEFAULT = 1;
 const LEVEL_MIN = 1;
 const LEVEL_MAX = 10;
@@ -79,6 +79,8 @@ const START_COUNTIN_BEATS = 4;
 const PATTERNS_PER_LEVEL = 4;
 const MIN_SCORE_RATIO_TO_LEVEL_UP = 0.5;
 const SCORE_REGEN_INTERVAL_MS = 50;
+const EXPERIMENTAL_SONG_STRUCTURE = Object.freeze(['ABAB', 'CDCD', 'ABAB', 'EFEF', 'ABAB']);
+const TAP_LABEL_PULSE_DURATION_MS = 150;
 
 const PHASE = {
   LISTEN: 'LISTEN',
@@ -370,7 +372,8 @@ const state = {
   isMusicMode: false,
   musicAudio: null,
   musicGainNode: null,
-  musicModeStopTimer: null
+  musicModeStopTimer: null,
+  experimentalSongPatternPool: []
 };
 
 
@@ -598,15 +601,30 @@ function generatePattern() {
 }
 
 function initializeLevelPatternSequence() {
-  let firstPattern = generatePattern();
-  let secondPattern = generatePattern();
-
   if (state.isMusicMode) {
-    firstPattern = assignExperimentalMelodyToPattern(firstPattern);
-    secondPattern = assignExperimentalMelodyToPattern(secondPattern);
+    const uniquePatternKeys = Array.from(
+      new Set(EXPERIMENTAL_SONG_STRUCTURE.join('').split(''))
+    );
+    const patternByKey = new Map();
+
+    uniquePatternKeys.forEach((key) => {
+      const generatedPattern = assignExperimentalMelodyToPattern(generatePattern());
+      patternByKey.set(key, generatedPattern);
+    });
+
+    const orderedPatternKeys = EXPERIMENTAL_SONG_STRUCTURE
+      .join('')
+      .split('');
+
+    state.experimentalSongPatternPool = orderedPatternKeys.map((key) => clonePattern(patternByKey.get(key)));
+    state.levelPatternPool = state.experimentalSongPatternPool.map(clonePattern);
+  } else {
+    const firstPattern = generatePattern();
+    const secondPattern = generatePattern();
+    state.levelPatternPool = [firstPattern, secondPattern, firstPattern, secondPattern].map(clonePattern);
+    state.experimentalSongPatternPool = [];
   }
 
-  state.levelPatternPool = [firstPattern, secondPattern, firstPattern, secondPattern].map(clonePattern);
   state.levelPatternIndex = 0;
   state.pattern = clonePattern(state.levelPatternPool[state.levelPatternIndex]);
 }
@@ -1310,13 +1328,15 @@ function triggerTapLabelPulse() {
   state.tapLabelPulseTimer = setTimeout(() => {
     ui.tapZone.classList.remove('tap-hit-pulse');
     state.tapLabelPulseTimer = null;
-  }, 260);
+  }, TAP_LABEL_PULSE_DURATION_MS);
 }
 
 function scheduleTapLabelPulseForPatternHit(eventTime) {
   if (!state.audioCtx) return;
-  const anticipatoryLeadMs = 140;
-  const delayMs = Math.max(0, ((eventTime - state.audioCtx.currentTime) * 1000) - anticipatoryLeadMs);
+  const visualMidpointLeadMs = TAP_LABEL_PULSE_DURATION_MS / 2;
+  const offsetDelaySec = state.latencyOffsetMs / 1000;
+  const visualTargetTime = eventTime + offsetDelaySec;
+  const delayMs = Math.max(0, ((visualTargetTime - state.audioCtx.currentTime) * 1000) - visualMidpointLeadMs);
   setTimeout(() => {
     if (!state.isRunning || state.livePhase !== PHASE.TAP) return;
     triggerTapLabelPulse();
@@ -1582,13 +1602,20 @@ function scheduleLoop() {
         state.patternNumber += 1;
         state.completedPatternsInLevel += 1;
 
+        if (state.isMusicMode) {
+          const hasNextSongPattern = moveToNextPatternInLevel();
+          if (!hasNextSongPattern) {
+            state.levelPatternIndex = 0;
+            state.pattern = clonePattern(state.levelPatternPool[state.levelPatternIndex]);
+          }
+          appendLog(`[NEXT song pattern] idx=${state.levelPatternIndex + 1}/${state.levelPatternPool.length} pattern=${formatPattern(state.pattern)}`);
+          state.nextMeasureTime += measureDur;
+          updateStaticUI();
+          continue;
+        }
+
         if (state.completedPatternsInLevel >= PATTERNS_PER_LEVEL) {
           state.completedPatternsInLevel = 0;
-          if (state.isMusicMode) {
-            initializeLevelPatternSequence();
-            appendLog(`[NEW pattern sequence] mode=experimental pattern=${formatPattern(state.pattern)}`);
-            continue;
-          }
           const repeatCurrentLevel = shouldRepeatCurrentLevel();
           if (state.level >= LEVEL_MAX && !repeatCurrentLevel) {
             stopEngine();

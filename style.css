@@ -697,7 +697,7 @@ summary {
 }
 
 .tap-zone.tap-hit-pulse .tap-zone__text {
-  animation: tapLabelHitPulse 180ms ease-out;
+  animation: tapLabelHitPulse 150ms ease-out;
 }
 
 .tap-zone.listen-muted {

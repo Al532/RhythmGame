@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Infinite Rhythm Trainer</title>
     <script>
-      window.APP_VERSION = "64";
+      window.APP_VERSION = "65";
     </script>
-    <link rel="stylesheet" href="style.css?v=64" />
-    <link rel="modulepreload" href="fx-webgl.js?v=64" />
-    <script src="note-sequence-generator.js?v=64" defer></script>
-    <script src="main.js?v=64" defer></script>
+    <link rel="stylesheet" href="style.css?v=65" />
+    <link rel="modulepreload" href="fx-webgl.js?v=65" />
+    <script src="note-sequence-generator.js?v=65" defer></script>
+    <script src="main.js?v=65" defer></script>
   </head>
   <body>
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
@@ -71,6 +71,11 @@
           <label>
             Max points:
             <input id="maxScore" type="text" inputmode="numeric" value="10" />
+          </label>
+
+          <label>
+            <input id="infiniteMode" type="checkbox" />
+            Infinite mode (no game over at 0 score)
           </label>
 
           <fieldset>
